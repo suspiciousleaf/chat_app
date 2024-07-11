@@ -1,4 +1,5 @@
 import tkinter as tk
+import customtkinter as ctk
 
 LARGE_FONT_STYLE = ("Arial", 40, "bold")
 SMALL_FONT_STYLE = ("Arial", 16)
@@ -22,35 +23,38 @@ class Chattr:
         self.labels = {}
         self.entries = {}
         self.frame = self.create_display_frame()
-        self.create_login_buttons()
         self.username = tk.StringVar(value="username")
         self.password = tk.StringVar(value="password")
+        self.create_login_buttons()
 
     def create_login_buttons(self):
+        self.username.set("username")
+        self.password.set("password")
+        self.delete_all()
         self.create_login_button()
         self.create_signup_button()
 
     def create_login_button(self):
-        login_button = tk.Button(
+        login_button = ctk.CTkButton(
             self.frame,
             text="Log in",
-            bg=OFF_WHITE,
-            fg=LABEL_COLOUR,
+            bg_color=OFF_WHITE,
+            fg_color=LABEL_COLOUR,
             font=DEFAULT_FONT_STYLE,
-            borderwidth=0,
+            border_width=0,
             command=lambda: self.create_login_screen(),
         )
         self.buttons["login"] = login_button
         login_button.grid(row=0)
 
     def create_signup_button(self):
-        signup_button = tk.Button(
+        signup_button = ctk.CTkButton(
             self.frame,
             text="Create account",
-            bg=OFF_WHITE,
-            fg=LABEL_COLOUR,
+            bg_color=OFF_WHITE,
+            fg_color=LABEL_COLOUR,
             font=DEFAULT_FONT_STYLE,
-            borderwidth=0,
+            border_width=0,
             command=lambda: self.create_signup_screen(),
         )
         self.buttons["signup"] = signup_button
@@ -62,13 +66,14 @@ class Chattr:
 
     def create_login_screen(self):
 
-        print("'Log in' clicked")
-        self.delete_buttons()
+        print("'create_login_screen()' called")
+        self.delete_all()
 
-        username_entry = tk.Entry(
+        # Create 'username' entry
+        username_entry = ctk.CTkEntry(
             self.frame,
-            bg=WHITE,
-            fg=LABEL_COLOUR,
+            bg_color=WHITE,
+            fg_color=LABEL_COLOUR,
             font=SMALL_FONT_STYLE,
             exportselection=0,
         )
@@ -78,10 +83,10 @@ class Chattr:
         username_entry.bind("<Key-Return>", self.print_contents)
 
         # Create 'password' entry
-        password_entry = tk.Entry(
+        password_entry = ctk.CTkEntry(
             self.frame,
-            bg=WHITE,
-            fg=LABEL_COLOUR,
+            bg_color=WHITE,
+            fg_color=LABEL_COLOUR,
             font=SMALL_FONT_STYLE,
             exportselection=0,
             show="*",
@@ -91,23 +96,58 @@ class Chattr:
         password_entry["textvariable"] = self.password
         password_entry.bind("<Key-Return>", self.print_contents)
 
+        login_button = ctk.CTkButton(
+            self.frame,
+            text="Log in",
+            bg_color=OFF_WHITE,
+            fg_color=LABEL_COLOUR,
+            font=DEFAULT_FONT_STYLE,
+            border_width=0,
+            # command=lambda: self.create_login_screen(),
+        )
+        self.buttons["login"] = login_button
+        login_button.grid(row=2)
+
+        back_button = ctk.CTkButton(
+            self.frame,
+            text="Back",
+            bg_color=OFF_WHITE,
+            fg_color=LABEL_COLOUR,
+            font=DEFAULT_FONT_STYLE,
+            border_width=0,
+            command=lambda: self.create_login_buttons(),
+        )
+        self.buttons["back"] = back_button
+        back_button.grid(row=3)
+
     def create_signup_screen(self):
         print("'Sign up' clicked")
-        self.delete_buttons()
+        self.delete_all()
 
     def delete_buttons(self):
         for button in self.buttons:
             self.buttons[button].grid_forget()
         self.buttons.clear()
 
-    # def create_buttons_frame(self):
-    #     frame = tk.Frame(self.window)
-    #     # frame.pack(expand=True, fill="both")
-    #     frame.place(relx=0.5, rely=0.5, anchor="center")
-    #     return frame
+    def delete_entries(self):
+        for entry in self.entries:
+            self.entries[entry].grid_forget()
+        self.entries.clear()
+
+    def delete_labels(self):
+        for label in self.labels:
+            self.labels[label].grid_forget()
+        self.labels.clear()
+
+    def delete_all(self):
+        self.delete_labels()
+        self.delete_buttons()
+        self.delete_entries()
 
     def create_display_frame(self):
-        frame = tk.Frame(self.window, height=221, bg=LIGHT_GRAY)
+        frame = ctk.CTkFrame(
+            self.window, height=221, bg_color="white", fg_color="white"
+        )
         frame.pack(expand=True, fill="both")
         return frame
 
