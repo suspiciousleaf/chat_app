@@ -64,19 +64,6 @@ class Chattr:
 
         print("'Log in' clicked")
         self.delete_buttons()
-        # # Create 'username' label
-        # username_label = tk.Label(
-        #     self.frame,
-        #     text=self.username,
-        #     anchor=tk.E,
-        #     bg=LIGHT_GRAY,
-        #     fg=LABEL_COLOUR,
-        #     padx=24,
-        #     font=SMALL_FONT_STYLE,
-        # )
-
-        # self.labels["username_label"] = username_label
-        # username_label.grid(row=0)
 
         username_entry = tk.Entry(
             self.frame,
@@ -89,19 +76,6 @@ class Chattr:
         username_entry.grid(row=0, column=0)
         username_entry["textvariable"] = self.username
         username_entry.bind("<Key-Return>", self.print_contents)
-
-        # # Create 'password' label
-        # password_label = tk.Label(
-        #     self.frame,
-        #     text="Password",
-        #     anchor=tk.E,
-        #     bg=LIGHT_GRAY,
-        #     fg=LABEL_COLOUR,
-        #     padx=24,
-        #     font=LARGE_FONT_STYLE,
-        # )
-        # self.labels["password_label"] = password_label
-        # password_label.grid(row=1, column=0)
 
         # Create 'password' entry
         password_entry = tk.Entry(
