@@ -68,3 +68,16 @@ def run_single_query(db, cursor, query, values):
     except Exception as error:
         print(f"Error: {error}")
         db.rollback()
+
+
+@connect_to_database
+def retrieve_existing_usernames(db, cursor):
+    """Retrieve all account ids"""
+    try:
+        cursor.execute("SELECT username FROM accounts")
+        usernames = cursor.fetchall()
+
+        return usernames
+
+    except Exception as error:
+        print(f"Error: {error}")
