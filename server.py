@@ -1,10 +1,10 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, HTTPException
 import redis
 import json
 from datetime import datetime
 from dotenv import load_dotenv
 from os import getenv
-from db_module.db_utilities import run_single_query
+from db_module.db_utilities import run_single_query, retrieve_existing_usernames
 
 if getenv("DB_PASSWORD") is None:
     load_dotenv()
@@ -21,9 +21,9 @@ r = redis.Redis(host="localhost", port=6379, db=0)
 
 # Endpoint to send messages
 @app.post("/send_message/")
-async def send_message(user_id: int, chat_room: str, content: str):
+async def send_message(account_id: int, chat_room: str, content: str):
     message = {
-        "user_id": user_id,
+        "account_id": account_id,
         "chat_room": chat_room,
         "content": content,
         "timestamp": datetime.utcnow().isoformat(),
@@ -34,9 +34,29 @@ async def send_message(user_id: int, chat_room: str, content: str):
     # Store message in PostgreSQL
     run_single_query(
         query="INSERT INTO messages (user_id, chat_room, content) VALUES (%s, %s, %s)",
-        values=(user_id, chat_room, content),
+        values=(account_id, chat_room, content),
     )
     return {"status": "message sent"}
+
+
+# Endpoint to create account
+@app.post("/create_account/")
+async def create_account(username: str, password: str):
+    account_info = {
+        "username": username,
+        "password": password,
+    }
+
+    usernames = retrieve_existing_usernames()
+    if username in usernames:
+        raise HTTPException(409, "Username already exists")
+
+    # Create account in database
+    run_single_query(
+        query="INSERT INTO accounts (username, password) VALUES (%s, %s)",
+        values=(username, password),
+    )
+    return {"status": "account created"}
 
 
 # WebSocket endpoint
