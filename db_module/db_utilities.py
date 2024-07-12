@@ -56,3 +56,15 @@ def connect_to_database(original_func):
         return results
 
     return make_connection
+
+
+@connect_to_database
+def run_single_query(db, cursor, query, values):
+    """Function to run a single SQL query"""
+    try:
+        cursor.execute(query, values)
+        db.commit()
+
+    except Exception as error:
+        print(f"Error: {error}")
+        db.rollback()
