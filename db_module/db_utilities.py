@@ -74,10 +74,23 @@ def run_single_query(db, cursor, query, values):
 def retrieve_existing_usernames(db, cursor):
     """Retrieve all account ids"""
     try:
-        cursor.execute("SELECT username FROM accounts")
+        cursor.execute("SELECT username FROM users")
         usernames = cursor.fetchall()
 
         return usernames
+
+    except Exception as error:
+        print(f"Error: {error}")
+
+
+@connect_to_database
+def retrieve_existing_accounts(db, cursor):
+    """Retrieve all accounts"""
+    try:
+        cursor.execute("SELECT (username, password) FROM users")
+        users = cursor.fetchall()
+
+        return users
 
     except Exception as error:
         print(f"Error: {error}")
