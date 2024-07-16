@@ -1,10 +1,17 @@
-from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi import FastAPI, WebSocket, HTTPException, status
+
+# from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import redis
 import json
 from datetime import datetime
 from dotenv import load_dotenv
 from os import getenv
-from db_module.db_utilities import run_single_query, retrieve_existing_usernames
+from db_module.db_utilities import (
+    run_single_query,
+    retrieve_existing_usernames,
+    retrieve_existing_accounts,
+)
 
 if getenv("DB_PASSWORD") is None:
     load_dotenv()
@@ -17,6 +24,12 @@ DB_DB_NAME = getenv("DB_DB_NAME")
 app = FastAPI()
 r = redis.Redis(host="localhost", port=6379, db=0)
 # conn = psycopg2.connect(f"dbname={DB_DB_NAME} user={DB_USER} password={DB_PASSWORD}")
+
+
+# Endpoint to ping server
+@app.get("/")
+def ping():
+    return "Chat app server running"
 
 
 # Endpoint to send messages
@@ -39,24 +52,46 @@ async def send_message(account_id: int, chat_room: str, content: str):
     return {"status": "message sent"}
 
 
-# Endpoint to create account
-@app.post("/create_account/")
-async def create_account(username: str, password: str):
-    account_info = {
-        "username": username,
-        "password": password,
-    }
+# Pydantic model for verification, eventually move to another file
+class AccountCreate(BaseModel):
+    username: str
+    password: str
 
-    usernames = retrieve_existing_usernames()
-    if username in usernames:
+
+# Endpoint to create an account
+@app.post("/create_account", status_code=status.HTTP_201_CREATED)
+async def create_account(account: AccountCreate):
+    try:
+        usernames = [user[0] for user in retrieve_existing_usernames()]
+
+        account.username = account.username.strip()
+
+    except:
+        raise HTTPException(500, "Database connection error")
+
+    if account.username in usernames:
         raise HTTPException(409, "Username already exists")
 
-    # Create account in database
-    run_single_query(
-        query="INSERT INTO accounts (username, password) VALUES (%s, %s)",
-        values=(username, password),
-    )
-    return {"status": "account created"}
+    try:
+        # Create account in database
+        run_single_query(
+            query="INSERT INTO users (username, password) VALUES (%s, %s)",
+            values=(account.username, account.password),
+        )
+        return {"status": "account created"}
+
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# Endpoint to view all accounts
+@app.get("/accounts")
+def view_accounts():
+    try:
+        users = retrieve_existing_accounts()
+        return users
+    except Exception as e:
+        raise HTTPException(500, f"Server Error: {e}")
 
 
 # WebSocket endpoint
