@@ -87,7 +87,7 @@ def retrieve_existing_usernames(db, cursor):
 def retrieve_existing_accounts(db, cursor):
     """Retrieve all accounts"""
     try:
-        cursor.execute("SELECT (username, password) FROM users")
+        cursor.execute("SELECT (id, username, password) FROM users")
         users = cursor.fetchall()
 
         return users
