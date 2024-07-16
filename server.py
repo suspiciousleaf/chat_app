@@ -1,12 +1,10 @@
 from fastapi import FastAPI, WebSocket, HTTPException, status
-
-# from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import redis
-import json
-from datetime import datetime
-from dotenv import load_dotenv
 from os import getenv
+
+from dotenv import load_dotenv
+
 from db_module.db_utilities import (
     run_single_query,
     retrieve_existing_usernames,
@@ -32,27 +30,42 @@ def ping():
     return "Chat app server running"
 
 
-# Endpoint to send messages
-@app.post("/send_message/")
-async def send_message(account_id: int, chat_room: str, content: str):
-    message = {
-        "account_id": account_id,
-        "chat_room": chat_room,
-        "content": content,
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-    # Publish message to Redis channel
-    r.publish(chat_room, json.dumps(message))
+# Pydantic model for message verification, eventually move to another file
+class MessageSend(BaseModel):
+    username: str
+    password: str
+    channel: str
+    content: str
 
-    # Store message in PostgreSQL
+
+# Endpoint to send messages
+@app.post("/send_message")
+async def send_message(message: MessageSend):
+
+    # # Publish message to Redis channel
+    # r.publish(message.channel, json.dumps(message.content))
+
+    accounts = retrieve_existing_accounts()
+
+    id = None
+    for account in accounts:
+        if (message.username, message.password) == account[1:]:
+            id = account[0]
+    print((message.username, message.password))
+    print(accounts)
+
+    if id is None:
+        raise HTTPException(401, "Unauthorized account")
+
+    # Store message in database
     run_single_query(
-        query="INSERT INTO messages (user_id, chat_room, content) VALUES (%s, %s, %s)",
-        values=(account_id, chat_room, content),
+        query="INSERT INTO messages (user_id, channel, content) VALUES (%s, %s, %s)",
+        values=(id, message.channel, message.content),
     )
     return {"status": "message sent"}
 
 
-# Pydantic model for verification, eventually move to another file
+# Pydantic model for account verification, eventually move to another file
 class AccountCreate(BaseModel):
     username: str
     password: str
@@ -95,11 +108,11 @@ def view_accounts():
 
 
 # WebSocket endpoint
-@app.websocket("/ws/{chat_room}")
-async def websocket_endpoint(websocket: WebSocket, chat_room: str):
+@app.websocket("/ws/{channel}")
+async def websocket_endpoint(websocket: WebSocket, channel: str):
     await websocket.accept()
     pubsub = r.pubsub()
-    pubsub.subscribe(chat_room)
+    pubsub.subscribe(channel)
 
     try:
         for message in pubsub.listen():
@@ -108,5 +121,5 @@ async def websocket_endpoint(websocket: WebSocket, chat_room: str):
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        pubsub.unsubscribe(chat_room)
+        pubsub.unsubscribe(channel)
         await websocket.close()
