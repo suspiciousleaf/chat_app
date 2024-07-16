@@ -45,14 +45,15 @@ def build_database(db, cursor, commands):
 
 build_database_commands = [create_user, create_database, grant_privileges]
 
-build_database(commands=build_database_commands)
+# build_database(commands=build_database_commands)
 
 # Create table statements
 create_users_table = """
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL
+    password VARCHAR(255) NOT NULL,
+    creation_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 """
 
