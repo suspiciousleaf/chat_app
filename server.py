@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, HTTPException, status
 from pydantic import BaseModel
 import redis
+import json
 from os import getenv
 
 from dotenv import load_dotenv
@@ -39,29 +40,36 @@ class MessageSend(BaseModel):
 
 
 # Endpoint to send messages
-@app.post("/send_message")
+@app.post("/send_message", status_code=status.HTTP_201_CREATED)
 async def send_message(message: MessageSend):
 
-    # # Publish message to Redis channel
-    # r.publish(message.channel, json.dumps(message.content))
+    try:
+        # Publish message to Redis channel
+        r.publish(message.channel, json.dumps(message.content))
+    except Exception as e:
+        print(f"Unable to publish message: {e}")
 
     accounts = retrieve_existing_accounts()
 
     id = None
+
     for account in accounts:
         if (message.username, message.password) == account[1:]:
             id = account[0]
-    print((message.username, message.password))
-    print(accounts)
 
     if id is None:
         raise HTTPException(401, "Unauthorized account")
 
-    # Store message in database
-    run_single_query(
-        query="INSERT INTO messages (user_id, channel, content) VALUES (%s, %s, %s)",
-        values=(id, message.channel, message.content),
-    )
+    try:
+        # Store message in database
+        run_single_query(
+            query="INSERT INTO messages (user_id, channel, content) VALUES (%s, %s, %s)",
+            values=(id, message.channel, message.content),
+        )
+    except Exception as e:
+        print(f"Unable to upload message to database: {e}")
+        return {"status": "message failed"}
+
     return {"status": "message sent"}
 
 
@@ -110,9 +118,11 @@ def view_accounts():
 # WebSocket endpoint
 @app.websocket("/ws/{channel}")
 async def websocket_endpoint(websocket: WebSocket, channel: str):
+    print("Websocket connection requested")
     await websocket.accept()
     pubsub = r.pubsub()
     pubsub.subscribe(channel)
+    r.publish(channel, f"Welcome user to '{channel}' channel")
 
     try:
         for message in pubsub.listen():
