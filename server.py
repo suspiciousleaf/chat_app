@@ -124,12 +124,23 @@ async def websocket_endpoint(websocket: WebSocket, channel: str):
     pubsub.subscribe(channel)
     r.publish(channel, f"Welcome user to '{channel}' channel")
 
-    try:
-        for message in pubsub.listen():
-            if message["type"] == "message":
-                await websocket.send_text(message["data"].decode("utf-8"))
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        pubsub.unsubscribe(channel)
-        await websocket.close()
+    while True:
+
+        try:
+            # Deal with incoming messages
+            incoming_message = await websocket.receive_text()
+            print(f"{incoming_message = }")
+            r.publish(channel, incoming_message)
+
+            # Deal with outgoing messages
+            for message in pubsub.listen():
+                if message["type"] == "message":
+                    await websocket.send_text(message["data"].decode("utf-8"))
+        except Exception as e:
+            print(f"Error: {e}")
+    # finally:
+    pubsub.unsubscribe(channel)
+    await websocket.close()
+
+
+#! Make a new file and go through server and client code on https://websockets.readthedocs.io/en/stable/ build up from there, try to maintain a stable connection
