@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, HTTPException, status
+from fastapi import FastAPI, WebSocket, HTTPException, status, Depends
 from pydantic import BaseModel
 import redis
 import json
@@ -6,14 +6,15 @@ from os import getenv
 
 from dotenv import load_dotenv
 
+from routers.auth import router as auth_router, User, get_current_active_user
+
 from db_module.db_utilities import (
     run_single_query,
     retrieve_existing_usernames,
     retrieve_existing_accounts,
 )
 
-if getenv("DB_PASSWORD") is None:
-    load_dotenv()
+load_dotenv()
 
 DB_USER = getenv("DB_USER")
 DB_PASSWORD = getenv("DB_PASSWORD")
@@ -21,6 +22,7 @@ DB_DB_NAME = getenv("DB_DB_NAME")
 
 
 app = FastAPI()
+app.include_router(auth_router)
 r = redis.Redis(host="localhost", port=6379, db=0)
 # conn = psycopg2.connect(f"dbname={DB_DB_NAME} user={DB_USER} password={DB_PASSWORD}")
 
@@ -39,9 +41,12 @@ class MessageSend(BaseModel):
     content: str
 
 
+# TODO Add auth requirements to endpoints that need it
 # Endpoint to send messages
 @app.post("/send_message", status_code=status.HTTP_201_CREATED)
-async def send_message(message: MessageSend):
+async def send_message(
+    message: MessageSend, current_user: User = Depends(get_current_active_user)
+):
 
     try:
         # Publish message to Redis channel

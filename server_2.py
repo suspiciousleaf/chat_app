@@ -1,6 +1,17 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status
 
+from routers.auth import router as auth_router
+
+
 app = FastAPI()
+
+app.include_router(auth_router)
+
+
+# Endpoint to ping server
+@app.get("/")
+def ping():
+    return "Chat app server running"
 
 
 class ConnectionManager:
