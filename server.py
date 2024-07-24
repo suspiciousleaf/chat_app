@@ -1,5 +1,5 @@
 from fastapi import FastAPI, WebSocket, HTTPException, status, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import redis
 import json
 from os import getenv
@@ -10,8 +10,8 @@ from routers.auth import router as auth_router, User, get_current_active_user
 
 from db_module.db_utilities import (
     run_single_query,
-    retrieve_existing_usernames,
     retrieve_existing_accounts,
+    create_account,
 )
 
 load_dotenv()
@@ -80,34 +80,14 @@ async def send_message(
 
 # Pydantic model for account verification, eventually move to another file
 class AccountCreate(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6, max_length=255)
 
 
 # Endpoint to create an account
 @app.post("/create_account", status_code=status.HTTP_201_CREATED)
-async def create_account(account: AccountCreate):
-    try:
-        usernames = [user[0] for user in retrieve_existing_usernames()]
-
-        account.username = account.username.strip()
-
-    except:
-        raise HTTPException(500, "Database connection error")
-
-    if account.username in usernames:
-        raise HTTPException(409, "Username already exists")
-
-    try:
-        # Create account in database
-        run_single_query(
-            query="INSERT INTO users (username, password) VALUES (%s, %s)",
-            values=(account.username, account.password),
-        )
-        return {"status": "account created"}
-
-    except Exception as e:
-        raise HTTPException(500, str(e))
+async def create_account_endpoint(account: AccountCreate):
+    return create_account(account.username, account.password)
 
 
 # Endpoint to view all accounts
