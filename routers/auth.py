@@ -17,13 +17,13 @@ ALGORITHM = getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 ROUTER_PREFIX = "/auth"
 
-db = {
-    "username_1": {
-        "username": "username_1",
-        "password_hashed": "$2b$12$/J4UH51dkrN28Hg3npDtSeKaPIQLz0z9lNUZ52PQ9ql/3BNyM1q3y",
-        "disabled": False,
-    }
-}
+# db = {
+#     "username_1": {
+#         "username": "username_1",
+#         "password_hashed": "$2b$12$/J4UH51dkrN28Hg3npDtSeKaPIQLz0z9lNUZ52PQ9ql/3BNyM1q3y",
+#         "disabled": False,
+#     }
+# }
 
 
 class Token(BaseModel):
