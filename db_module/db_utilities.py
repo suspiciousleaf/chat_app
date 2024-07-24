@@ -1,6 +1,7 @@
 from os import getenv
 from dotenv import load_dotenv
 import psycopg2
+from fastapi import status, HTTPException
 
 # Check of environment variables are loaded, and if not load them from .env. Also check if running locally or not, which changes some of the information.
 
@@ -48,7 +49,8 @@ def connect_to_database(original_func):
                     results = original_func(db=db, cursor=cursor, *args, **kwargs)
 
         except psycopg2.Error as e:
-            raise DatabaseConnectionError(f"Database connection error: {e}")
+            # Log actual error, return simple message
+            raise DatabaseConnectionError(f"Database error")
 
         except Exception as e:
             raise DatabaseConnectionError(f"An unexpected error occurred: {e}")
@@ -65,22 +67,53 @@ def run_single_query(db, cursor, query, values):
         cursor.execute(query, values)
         db.commit()
 
-    except Exception as error:
-        print(f"Error: {error}")
+    except Exception as e:
         db.rollback()
+        raise e
+
+
+def create_account(username: str, password: str) -> dict | None:
+    """Create a new account"""
+
+    try:
+        usernames = retrieve_existing_usernames()
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to retrieve existing usernames",
+        )
+
+    username = username.strip()
+
+    if username in usernames:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Username already exists"
+        )
+
+    try:
+        # Create account in database
+        run_single_query(
+            query="INSERT INTO users (username, password_hashed) VALUES (%s, %s)",
+            values=(username, password),
+        )
+        return {"status": "account created"}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
 
 
 @connect_to_database
-def retrieve_existing_usernames(db, cursor):
-    """Retrieve all account ids"""
-    try:
-        cursor.execute("SELECT username FROM users")
-        usernames = cursor.fetchall()
+def retrieve_existing_usernames(db, cursor) -> set:
+    """Retrieve all account usernames"""
 
-        return usernames
+    cursor.execute("SELECT username FROM users")
+    usernames_raw = cursor.fetchall()
 
-    except Exception as error:
-        print(f"Error: {error}")
+    usernames: set = {user[0] for user in usernames_raw}
+
+    return usernames
 
 
 @connect_to_database
