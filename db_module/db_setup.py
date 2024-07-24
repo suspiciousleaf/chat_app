@@ -56,6 +56,7 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username VARCHAR(50) UNIQUE NOT NULL,
     password_hashed VARCHAR(255) NOT NULL,
+    disabled BOOLEAN DEFAULT FALSE,
     creation_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 """
