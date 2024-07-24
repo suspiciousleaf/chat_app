@@ -1,7 +1,9 @@
 from os import getenv
 from dotenv import load_dotenv
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from fastapi import status, HTTPException
+import json
 
 # Check of environment variables are loaded, and if not load them from .env. Also check if running locally or not, which changes some of the information.
 
@@ -44,7 +46,8 @@ def connect_to_database(original_func):
                 host=DB_HOST,
                 port=DB_PORT,
             ) as db:
-                with db.cursor() as cursor:
+                # Returns rows as RealDictRow, inherits from NamedTuple
+                with db.cursor(cursor_factory=RealDictCursor) as cursor:
                     # kwargs for db and cursor to avoid conflicts with 'self'
                     results = original_func(db=db, cursor=cursor, *args, **kwargs)
 
@@ -111,7 +114,7 @@ def retrieve_existing_usernames(db, cursor) -> set:
     cursor.execute("SELECT username FROM users")
     usernames_raw = cursor.fetchall()
 
-    usernames: set = {user[0] for user in usernames_raw}
+    usernames: set = {user["username"] for user in usernames_raw}
 
     return usernames
 
@@ -119,11 +122,10 @@ def retrieve_existing_usernames(db, cursor) -> set:
 @connect_to_database
 def retrieve_existing_accounts(db, cursor):
     """Retrieve all accounts"""
-    try:
-        cursor.execute("SELECT id, username, password FROM users")
-        users = cursor.fetchall()
 
-        return users
+    cursor.execute("SELECT id, username, password_hashed, disabled FROM users")
+    users = cursor.fetchall()
 
-    except Exception as error:
-        print(f"Error: {error}")
+    accounts = {user["username"]: dict(user) for user in users}
+
+    return accounts
