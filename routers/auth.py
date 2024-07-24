@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, APIRouter
+from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 from os import getenv
+import time
 
 
 load_dotenv()
@@ -61,9 +62,6 @@ def get_user(db, username: str):
         return UserInDB(**user_data)
 
 
-# print(get_user(db, "username_1"))
-
-
 def authenticate_user(db, username: str, password: str):
     user = get_user(db, username)
     if not user:
@@ -83,15 +81,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
     to_encode["exp"] = expire
 
-    # print(to_encode)
-
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
     return encoded_jwt
-
-
-# print(f'{create_access_token(db["username_1"]) = }')
-# print(f'{create_access_token(db["username_1"]) = }')
-# print(f'{create_access_token(db["username_1"]) = }')
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -128,9 +120,7 @@ async def get_current_active_user(current_user: UserInDB = Depends(get_current_u
     return current_user
 
 
-router = APIRouter(
-    prefix=ROUTER_PREFIX
-)  # , dependencies=[Depends(get_current_active_user)])
+router = APIRouter(prefix=ROUTER_PREFIX)
 
 
 @router.post("/token", response_model=Token)
