@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 from os import getenv
 import time
+from db_module.db_utilities import retrieve_existing_accounts
 
 
 load_dotenv()
@@ -19,7 +20,7 @@ ROUTER_PREFIX = "/auth"
 db = {
     "username_1": {
         "username": "username_1",
-        "hashed_password": "$2b$12$/J4UH51dkrN28Hg3npDtSeKaPIQLz0z9lNUZ52PQ9ql/3BNyM1q3y",
+        "password_hashed": "$2b$12$/J4UH51dkrN28Hg3npDtSeKaPIQLz0z9lNUZ52PQ9ql/3BNyM1q3y",
         "disabled": False,
     }
 }
@@ -40,7 +41,7 @@ class User(BaseModel):
 
 
 class UserInDB(User):
-    hashed_password: str
+    password_hashed: str
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -48,8 +49,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{ROUTER_PREFIX}/token")
 
 
-def verify_password(plaintext_password, hashed_password):
-    return pwd_context.verify(plaintext_password, hashed_password)
+def verify_password(plaintext_password, password_hashed):
+    return pwd_context.verify(plaintext_password, password_hashed)
 
 
 def get_password_hash(plaintext_password):
@@ -57,8 +58,9 @@ def get_password_hash(plaintext_password):
 
 
 def get_user(db, username: str):
-    if username in db:
-        user_data = db[username]
+    accounts = retrieve_existing_accounts()
+    if username in accounts:
+        user_data = accounts[username]
         return UserInDB(**user_data)
 
 
@@ -66,7 +68,7 @@ def authenticate_user(db, username: str, password: str):
     user = get_user(db, username)
     if not user:
         return False
-    if not verify_password(password, user.hashed_password):
+    if not verify_password(password, user.password_hashed):
         return False
 
     return user
