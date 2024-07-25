@@ -18,14 +18,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 ROUTER_PREFIX = "/auth"
 CRYPTCONTEXT_SCHEME = getenv("CRYPTCONTEXT_SCHEME")
 
-# db = {
-#     "username_1": {
-#         "username": "username_1",
-#         "password_hashed": "$2b$12$/J4UH51dkrN28Hg3npDtSeKaPIQLz0z9lNUZ52PQ9ql/3BNyM1q3y",
-#         "disabled": False,
-#     }
-# }
-
 
 class Token(BaseModel):
     access_token: str
@@ -172,6 +164,3 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
 @router.get("/users/me/items")
 async def read_own_items(current_user: User = Depends(get_current_active_user)):
     return [{"item_id": 1, "owner": current_user}]
-
-
-#! Add id to token so it can be used for message table, maybe add column for id and column for username to messages table
