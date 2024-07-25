@@ -53,6 +53,7 @@ CREATE TABLE users (
     username VARCHAR(50) PRIMARY KEY UNIQUE NOT NULL,
     password_hashed VARCHAR(255) NOT NULL,
     disabled BOOLEAN DEFAULT FALSE,
+    channels TEXT[],
     creation_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 """
