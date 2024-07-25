@@ -47,14 +47,10 @@ build_database_commands = [create_user, create_database, grant_privileges]
 
 # build_database(commands=build_database_commands)
 
-# Install UUID function if needed
-install_uuid = 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
-
 # Create table statements
 create_users_table = """
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(50) UNIQUE NOT NULL,
+    username VARCHAR(50) PRIMARY KEY UNIQUE NOT NULL,
     password_hashed VARCHAR(255) NOT NULL,
     disabled BOOLEAN DEFAULT FALSE,
     creation_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -64,7 +60,7 @@ CREATE TABLE users (
 create_messages_table = """
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES users(id),
+    username VARCHAR(50) REFERENCES users(username),
     channel VARCHAR(50),
     content TEXT,
     timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -95,6 +91,6 @@ def create_tables(db, cursor, commands):
         db.rollback()
 
 
-create_tables_commands = [install_uuid, create_users_table, create_messages_table]
+create_tables_commands = [create_users_table, create_messages_table]
 
 create_tables(commands=create_tables_commands)

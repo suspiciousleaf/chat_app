@@ -3,14 +3,12 @@ from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from fastapi import status, HTTPException
-import json
+from passlib.context import CryptContext
 
-# Check of environment variables are loaded, and if not load them from .env. Also check if running locally or not, which changes some of the information.
 
-if getenv("DB_USER") is None:
+load_dotenv()
 
-    load_dotenv()
-
+CRYPTCONTEXT_SCHEME = getenv("CRYPTCONTEXT_SCHEME")
 DB_HOST = getenv("DB_HOST")
 DB_PORT = getenv("DB_PORT")
 DB_ROOT_USER = getenv("DB_ROOT_USER")
@@ -18,6 +16,8 @@ DB_ROOT_PASSWORD = getenv("DB_ROOT_PASSWORD")
 DB_NAME = getenv("DB_NAME")
 DB_USER = getenv("DB_USER")
 DB_PASSWORD = getenv("DB_PASSWORD")
+
+pwd_context = CryptContext(schemes=[CRYPTCONTEXT_SCHEME], deprecated="auto")
 
 
 class DatabaseConnectionError(Exception):
@@ -94,10 +94,13 @@ def create_account(username: str, password: str) -> dict | None:
         )
 
     try:
+        # Hash password
+        password_hashed = pwd_context.hash(password)
+
         # Create account in database
         run_single_query(
             query="INSERT INTO users (username, password_hashed) VALUES (%s, %s)",
-            values=(username, password),
+            values=(username, password_hashed),
         )
         return {"status": "account created"}
 
@@ -123,7 +126,7 @@ def retrieve_existing_usernames(db, cursor) -> set:
 def retrieve_existing_accounts(db, cursor):
     """Retrieve all accounts"""
 
-    cursor.execute("SELECT id, username, password_hashed, disabled FROM users")
+    cursor.execute("SELECT username, password_hashed, disabled FROM users")
     users = cursor.fetchall()
 
     accounts = {user["username"]: dict(user) for user in users}
