@@ -35,13 +35,10 @@ def ping():
 
 # Pydantic model for message verification, eventually move to another file
 class MessageSend(BaseModel):
-    username: str
-    password: str
     channel: str
     content: str
 
 
-# TODO Add auth requirements to endpoints that need it
 # Endpoint to send messages
 @app.post("/send_message", status_code=status.HTTP_201_CREATED)
 async def send_message(
@@ -52,28 +49,20 @@ async def send_message(
         # Publish message to Redis channel
         r.publish(message.channel, json.dumps(message.content))
     except Exception as e:
-        print(f"Unable to publish message: {e}")
-
-    accounts = retrieve_existing_accounts()
-
-    id = None
-
-    for account in accounts:
-        if (message.username, message.password) == account[1:]:
-            id = account[0]
-
-    if id is None:
-        raise HTTPException(401, "Unauthorized account")
+        print(f"Unable to publish message on redis: {e}")
 
     try:
         # Store message in database
         run_single_query(
-            query="INSERT INTO messages (user_id, channel, content) VALUES (%s, %s, %s)",
-            values=(id, message.channel, message.content),
+            query="INSERT INTO messages (username, channel, content) VALUES (%s, %s, %s)",
+            values=(current_user.username, message.channel, message.content),
         )
     except Exception as e:
         print(f"Unable to upload message to database: {e}")
-        return {"status": "message failed"}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "Failed to send message"},
+        )
 
     return {"status": "message sent"}
 
