@@ -132,3 +132,24 @@ def retrieve_existing_accounts(db, cursor):
     accounts = {user["username"]: dict(user) for user in users}
 
     return accounts
+
+
+@connect_to_database
+def retrieve_channels(db, cursor, username: str) -> set | None:
+
+    # Change cursor to not return a dict, as only one channel is being retrieved
+    cursor = db.cursor()
+    query = "SELECT channels FROM users WHERE username = %s"
+
+    cursor.execute(query, (username,))
+
+    channels = cursor.fetchone()[0]
+
+    return set(channels)
+
+
+async def send_message(username, channel, content):
+    return run_single_query(
+        query="INSERT INTO messages (username, channel, content) VALUES (%s, %s, %s)",
+        values=(username, channel, content),
+    )
