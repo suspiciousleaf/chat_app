@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from routers.auth import router as auth_router, User, get_current_active_user
 
 from db_module.db_utilities import (
-    run_single_query,
+    send_message,
     retrieve_existing_accounts,
     create_account,
 )
@@ -24,7 +24,6 @@ DB_DB_NAME = getenv("DB_DB_NAME")
 app = FastAPI()
 app.include_router(auth_router)
 r = redis.Redis(host="localhost", port=6379, db=0)
-# conn = psycopg2.connect(f"dbname={DB_DB_NAME} user={DB_USER} password={DB_PASSWORD}")
 
 
 # Endpoint to ping server
@@ -46,17 +45,24 @@ async def send_message(
 ):
 
     try:
+        message_dict = {
+            "channel": message.channel,
+            "username": current_user.username,
+            "content": message.content,
+        }
+
         # Publish message to Redis channel
-        r.publish(message.channel, json.dumps(message.content))
+        r.publish(message.channel, json.dumps(message_dict))
     except Exception as e:
         print(f"Unable to publish message on redis: {e}")
 
     try:
         # Store message in database
-        run_single_query(
-            query="INSERT INTO messages (username, channel, content) VALUES (%s, %s, %s)",
-            values=(current_user.username, message.channel, message.content),
-        )
+        # run_single_query(
+        #     query="INSERT INTO messages (username, channel, content) VALUES (%s, %s, %s)",
+        #     values=(current_user.username, message.channel, message.content),
+        # )
+        send_message(current_user.username, message.channel, message.content)
     except Exception as e:
         print(f"Unable to upload message to database: {e}")
         raise HTTPException(
@@ -91,7 +97,9 @@ def view_accounts():
 
 # WebSocket endpoint
 @app.websocket("/ws/{channel}")
-async def websocket_endpoint(websocket: WebSocket, channel: str):
+async def websocket_endpoint(
+    websocket: WebSocket, channel: str
+):  # , current_user: User = Depends(get_current_active_user)):
     print("Websocket connection requested")
     await websocket.accept()
     pubsub = r.pubsub()
