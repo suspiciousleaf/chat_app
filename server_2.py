@@ -1,7 +1,15 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status
+from fastapi import (
+    FastAPI,
+    WebSocket,
+    WebSocketDisconnect,
+    HTTPException,
+    status,
+)
+from contextlib import asynccontextmanager
 import json
 import redis
 import time
+import asyncio
 
 from routers.auth import router as auth_router
 from db_module.db_utilities import retrieve_channels
@@ -12,6 +20,10 @@ app = FastAPI()
 app.include_router(auth_router)
 
 r = redis.Redis(host="localhost", port=6379, db=0)
+
+# env_path = Path(".") / ".env"
+# if env_path.exists():
+#     load_dotenv(env_path)
 
 
 # Endpoint to ping server
@@ -90,3 +102,31 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
 
 
 #! Check FastAPI websockets docs https://fastapi.tiangolo.com/advanced/websockets/
+
+
+async def message_listener():
+    pubsub = r.pubsub()
+    pubsub.subscribe("chat_messages")
+
+    print("Starting Redis message listener...")
+    while True:
+        message = pubsub.get_message(ignore_subscribe_messages=True)
+        if message is not None:
+            if message["type"] == "message":
+                try:
+                    data = json.loads(message["data"])
+                    for connection in ws_manager.active_connections.values():
+
+                        await connection["ws"].send_text(f"{data}")
+                except json.JSONDecodeError:
+                    print(f"Failed to parse message data: {message['data']}")
+        await asyncio.sleep(0.2)  # Short sleep to prevent busy-waiting
+
+
+# Start the Redis listener
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(message_listener())
+
+
+# TODO Find a way to run the listener, maybe fastapi backgroundtask on message receive, or contextlib @asynccontextmanager (watch videos), or other
