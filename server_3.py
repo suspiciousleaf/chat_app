@@ -171,6 +171,12 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
         await connection_man.disconnect(username)
 
 
+@app.on_event("startup")
+async def startup_event():
+    loop = asyncio.get_event_loop()
+    print(f"Current event loop: {type(loop).__name__}")
+
+
 @app.on_event("shutdown")
 async def shutdown_event():
     if connection_man.listener_task:
