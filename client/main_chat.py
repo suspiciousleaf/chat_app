@@ -1,6 +1,10 @@
 import datetime
 import tkinter as tk
 from tkinter import ttk
+import asyncio
+import threading
+import json
+from json import JSONDecodeError
 
 from networking.connect_websocket import MyWebSocket
 
@@ -30,7 +34,11 @@ class Chattr:
         self.labels = {}
         self.entries = {}
         self.username = "username_1"
-        self.client_websocket = self.connect_client_websocket()
+        self.client_websocket = MyWebSocket(self.username)
+
+        self.loop = asyncio.get_event_loop()
+        self.loop.create_task(self.connect_client_websocket())
+
         # self.frame = self.create_display_frame()
         self.username = tk.StringVar(value="username")
         self.password = tk.StringVar(value="password")
@@ -40,8 +48,51 @@ class Chattr:
         self.create_text_entry()
         self.configure_responsive()
 
-    def connect_client_websocket(self):
-        return MyWebSocket(self.username)
+        # Start the asyncio loop in a separate thread
+        self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
+        self.thread.start()
+
+    def run_async_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_until_complete(self.async_init())
+
+    async def async_init(self):
+        await self.connect_client_websocket()
+        await self.listen_for_messages()
+
+    async def connect_client_websocket(self):
+        await self.client_websocket.connect()
+
+    async def listen_for_messages(self):
+        while True:
+            try:
+                message = await self.client_websocket.websocket.recv()
+                self.display_message(message)
+            except Exception as e:
+                print(f"Error receiving message: {e}")
+                # Implement reconnection logic here if needed
+                await asyncio.sleep(5)  # Wait before trying to reconnect
+
+    def display_message(self, message):
+        message = self.decode_received_message(message)
+        current_time = datetime.datetime.now().strftime("%H:%M")
+        display_text = f"{current_time} Channel: {message['channel']}, Message: {message['content']}\n"
+        # Use after() method to safely update GUI from a different thread
+        self.window.after(0, self.update_text_field, display_text)
+
+    def update_text_field(self, text):
+        self.text_field.config(state="normal")
+        self.text_field.insert(tk.END, text)
+        self.text_field.config(state="disabled")
+        self.text_field.yview(tk.END)  # Auto-scroll to the bottom
+
+    def decode_received_message(self, message):
+        try:
+            return json.loads(message)
+        except JSONDecodeError:
+            print(f"Could not decode message: {message}")
+        except Exception as e:
+            print(f"Unknown error occurred when decoding message: {e}")
 
     def create_text_field(self):
         self.text_field = tk.Text(
@@ -69,6 +120,17 @@ class Chattr:
             self.text_field.config(state="disabled")
             self.text_field.yview(tk.END)  # Auto-scroll to the bottom
             self.entries["write_message"].delete(0, tk.END)
+
+    #! Add code to send messages in the correct format, write function below and trigger here
+    #         # Send message through WebSocket
+    #         asyncio.run_coroutine_threadsafe(self.send_websocket_message(message), self.loop)
+
+    # async def send_websocket_message(self, message):
+    #     try:
+    #         await self.client_websocket.send_message(message)
+    #     except Exception as e:
+    #         print(f"Failed to send message: {e}")
+    #         # Handle the sending failure (e.g., show an error message in the UI)
 
     def create_text_entry(self):
         message_entry = ttk.Entry(
