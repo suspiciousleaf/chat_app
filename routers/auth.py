@@ -14,7 +14,7 @@ load_dotenv()
 
 SECRET_KEY = getenv("SECRET_KEY")
 ALGORITHM = getenv("ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 600
 ROUTER_PREFIX = "/auth"
 CRYPTCONTEXT_SCHEME = getenv("CRYPTCONTEXT_SCHEME")
 
@@ -84,15 +84,32 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
+    """_summary_
+
+    Args:
+        token (str, optional): _description_. Defaults to Depends(oauth2_scheme).
+
+    Raises:
+        credential_exception: _description_
+        HTTPException: _description_
+        credential_exception: _description_
+        credential_exception: _description_
+
+    Returns:
+        _type_: _description_
+    """
     credential_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        print(f"{token=}")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"{payload=}")
 
         username: str = payload.get("sub")
+        print(f"{username=}")
         if username is None:
             raise credential_exception
 
@@ -117,6 +134,17 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 async def get_current_active_user(current_user: UserInDB = Depends(get_current_user)):
+    """_summary_
+
+    Args:
+        current_user (UserInDB, optional): _description_. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
     if current_user.disabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Account disabled"
