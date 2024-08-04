@@ -166,6 +166,7 @@ class Chattr:
         self.delete_entries()
 
     def create_display_frame(self) -> tk.Frame:
+        """Create the display Frame element"""
         frame = ttk.Frame(
             self.window, height=self.height, width=self.width
         )  # , background="white", foreground="white")
