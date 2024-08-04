@@ -3,37 +3,39 @@ import websockets
 import time
 
 WS_URL = "ws://127.0.0.1:8000"
-WEBSOCKET_ENDPOINT = "/ws/"
+WEBSOCKET_ENDPOINT = "/ws"
 
 
 class MyWebSocket:
-    def __init__(self, username):  # , manager):
-        self.username: str = username
-        self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}{self.username}"
+    def __init__(self, auth_token):  # , manager):
+        # self.username: str = username
+        self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"  # {self.username}"
         self.websocket: websockets = None
         self.new_message: str | None = None
-        # self.manager = manager
+        self.auth_token = auth_token
 
     async def connect(self):
-        # while True:
         try:
+            extra_headers = {
+                "Authorization": f"Bearer {self.auth_token.get('access_token')}"
+            }
+            print(f"Connecting with headers: {extra_headers}")
             self.websocket = await websockets.connect(
-                self.websocket_url, ping_interval=20, ping_timeout=10
+                self.websocket_url,
+                ping_interval=20,
+                ping_timeout=10,
+                extra_headers=extra_headers,
             )
             print(f"Connected to WebSocket at {self.websocket_url}")
-            # await self.receive_messages()
-        except websockets.exceptions.InvalidURI as e:
-            print(f"Invalid WebSocket URI: {e}")
-            # break
-        except websockets.exceptions.InvalidHandshake as e:
-            print(f"Invalid WebSocket handshake: {e}")
-            # break
+        except websockets.exceptions.InvalidStatusCode as e:
+            print(f"Invalid status code: {e.status_code}")
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred: {str(e)}")
+
         if not self.websocket:
-            print("Reconnecting in 5 seconds...")
+            print("Connection failed. Reconnecting in 5 seconds...")
             await asyncio.sleep(5)
-            # await self.connect()
+            await self.connect()
 
     # async def receive_messages(self):
     #     try:
