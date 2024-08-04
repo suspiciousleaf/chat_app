@@ -4,6 +4,7 @@ from fastapi import (
     WebSocketDisconnect,
     HTTPException,
     status,
+    Depends,
 )
 from redis.exceptions import ConnectionError, TimeoutError
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from routers.auth import router as auth_router
+from routers.auth import User, get_current_active_user, get_current_user
 from db_module.db_utilities import retrieve_channels
 
 
@@ -156,19 +158,55 @@ class ConnectionManager:
 connection_man = ConnectionManager()
 
 
-@app.websocket("/ws/{username}")
-async def websocket_endpoint(websocket: WebSocket, username: str):
-    # TODO Move client_id and bearer token to header
-    await connection_man.connect(websocket, username)
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
     try:
+        auth_header = websocket.headers.get("Authorization")
+        print(f"Received auth header: {auth_header}")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            print("Invalid or missing Authorization header")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        token = auth_header.split("Bearer ")[1]
+        print(f"Extracted token: {token}")
+
+        try:
+            current_user = await get_current_user(token)
+            active_user = await get_current_active_user(current_user)
+            print(f"Authenticated user: {active_user.username}")
+        except HTTPException as e:
+            print(f"Authentication failed: {str(e)}")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # User is authenticated and active, proceed with the WebSocket connection
+        await connection_man.connect(websocket, active_user.username)
+
         while True:
             data = await websocket.receive_text()
             connection_man.message_store.append(data)
             await connection_man.redis_man.enqueue_message(data)
     except WebSocketDisconnect:
-        await connection_man.disconnect(username)
+        await connection_man.disconnect(active_user.username)
     except asyncio.CancelledError:
-        await connection_man.disconnect(username)
+        await connection_man.disconnect(active_user.username)
+
+
+# @app.websocket("/ws/{username}")
+# async def websocket_endpoint(websocket: WebSocket, username: str):
+#     # TODO Move client_id and bearer token to header
+#     await connection_man.connect(websocket, username)
+#     try:
+#         while True:
+#             data = await websocket.receive_text()
+#             connection_man.message_store.append(data)
+#             await connection_man.redis_man.enqueue_message(data)
+#     except WebSocketDisconnect:
+#         await connection_man.disconnect(username)
+#     except asyncio.CancelledError:
+#         await connection_man.disconnect(username)
 
 
 @app.on_event("startup")
