@@ -30,7 +30,7 @@ class Chattr:
         self.frame: tk.Frame = self.create_display_frame()
         self.username = tk.StringVar()
         self.password = tk.StringVar()
-        self.token: dict = {}
+        self.auth_token: dict = {}
         self.create_login_buttons()
         self.configure_responsive()
 
@@ -130,7 +130,7 @@ class Chattr:
             payload = {"username": self.username.get(), "password": self.password.get()}
             response = requests.post(f"{URL}{LOGIN_ENDPOINT}", data=payload)
             response.raise_for_status()
-            self.token = response.json()
+            self.auth_token = response.json()
             return True
 
         except:
@@ -181,3 +181,6 @@ class Chattr:
 if __name__ == "__main__":
     chattr = Chattr()
     chattr.run()
+
+#! Keep working on websocket auth with token, verify connection is authorized. Possible bug with token expiry time.
+#! Make login get a token to ensure it's valid, rather than hardcoding.
