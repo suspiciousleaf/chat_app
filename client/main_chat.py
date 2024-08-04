@@ -34,7 +34,11 @@ class Chattr:
         self.labels = {}
         self.entries = {}
         self.username = "username_1"
-        self.client_websocket = MyWebSocket(self.username)
+        self.auth_token = {
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VybmFtZV8xIiwiZXhwIjoxNzIyODMzODc5fQ.EIU9JYh1nk_2d-RZvzhaOjDQw7mfIR5LB5BxyCgwJcc",
+            "token_type": "bearer",
+        }
+        self.client_websocket = MyWebSocket(self.auth_token)
 
         self.loop = asyncio.get_event_loop()
         self.loop.create_task(self.connect_client_websocket())
