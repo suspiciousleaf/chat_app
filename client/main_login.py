@@ -1,5 +1,6 @@
 import tkinter as tk
-import customtkinter as ctk
+from tkinter import ttk
+import requests
 
 LARGE_FONT_STYLE = ("Arial", 40, "bold")
 SMALL_FONT_STYLE = ("Arial", 16)
@@ -12,53 +13,61 @@ LIGHT_BLUE = "#CCEDFF"
 LIGHT_GRAY = "#F5F5F5"
 LABEL_COLOUR = "#25265E"
 
+URL = "http://127.0.0.1:8000"
+LOGIN_ENDPOINT = "/auth/token"
+
 
 class Chattr:
     def __init__(self):
         self.window = tk.Tk()
-        self.window.geometry("375x375")
-        self.window.resizable(0, 0)
+        self.width: int = 375
+        self.height: int = 375
+        self.window.geometry(f"{self.width}x{self.height}")
         self.window.title("Chattr")
-        self.buttons = {}
-        self.labels = {}
-        self.entries = {}
-        self.frame = self.create_display_frame()
-        self.username = tk.StringVar(value="username")
-        self.password = tk.StringVar(value="password")
+        self.buttons: dict = {}
+        self.labels: dict = {}
+        self.entries: dict = {}
+        self.frame: tk.Frame = self.create_display_frame()
+        self.username = tk.StringVar()
+        self.password = tk.StringVar()
+        self.token: dict = {}
         self.create_login_buttons()
+        self.configure_responsive()
 
     def create_login_buttons(self):
-        self.username.set("username")
-        self.password.set("password")
+        self.username.set("username_1")
+        self.password.set("password_1")
         self.delete_all()
         self.create_login_button()
         self.create_signup_button()
 
     def create_login_button(self):
-        login_button = ctk.CTkButton(
+        login_button = ttk.Button(
             self.frame,
             text="Log in",
-            bg_color=OFF_WHITE,
-            fg_color=LABEL_COLOUR,
-            font=DEFAULT_FONT_STYLE,
-            border_width=0,
             command=lambda: self.create_login_screen(),
         )
         self.buttons["login"] = login_button
-        login_button.grid(row=0)
+        login_button.grid(row=0, column=0)  # , sticky="ew")
 
     def create_signup_button(self):
-        signup_button = ctk.CTkButton(
+        signup_button = ttk.Button(
             self.frame,
             text="Create account",
-            bg_color=OFF_WHITE,
-            fg_color=LABEL_COLOUR,
-            font=DEFAULT_FONT_STYLE,
-            border_width=0,
             command=lambda: self.create_signup_screen(),
         )
         self.buttons["signup"] = signup_button
-        signup_button.grid(row=1)
+        signup_button.grid(row=1, column=0)  # , sticky="ew")
+
+    def configure_responsive(self):
+        # Configure grid row and column weights for responsive behaviour
+        self.window.rowconfigure(0, weight=1)
+        self.window.columnconfigure(0, weight=1)
+        # self.window.columnconfigure(1, weight=0)
+
+        self.frame.rowconfigure(1, weight=1)
+        self.frame.rowconfigure(0, weight=1)
+        self.frame.columnconfigure(0, weight=1)
 
     def print_contents(self, event):
         entry_widget = event.widget
@@ -66,14 +75,13 @@ class Chattr:
 
     def create_login_screen(self):
 
-        print("'create_login_screen()' called")
         self.delete_all()
 
         # Create 'username' entry
-        username_entry = ctk.CTkEntry(
+        username_entry = ttk.Entry(
             self.frame,
-            bg_color=WHITE,
-            fg_color=LABEL_COLOUR,
+            background=WHITE,
+            foreground=LABEL_COLOUR,
             font=SMALL_FONT_STYLE,
             exportselection=0,
         )
@@ -83,10 +91,10 @@ class Chattr:
         username_entry.bind("<Key-Return>", self.print_contents)
 
         # Create 'password' entry
-        password_entry = ctk.CTkEntry(
+        password_entry = ttk.Entry(
             self.frame,
-            bg_color=WHITE,
-            fg_color=LABEL_COLOUR,
+            background=WHITE,
+            foreground=LABEL_COLOUR,
             font=SMALL_FONT_STYLE,
             exportselection=0,
             show="*",
@@ -96,29 +104,32 @@ class Chattr:
         password_entry["textvariable"] = self.password
         password_entry.bind("<Key-Return>", self.print_contents)
 
-        login_button = ctk.CTkButton(
+        login_button = ttk.Button(
             self.frame,
             text="Log in",
-            bg_color=OFF_WHITE,
-            fg_color=LABEL_COLOUR,
-            font=DEFAULT_FONT_STYLE,
-            border_width=0,
-            # command=lambda: self.create_login_screen(),
+            command=lambda: self.get_auth_token(),
         )
         self.buttons["login"] = login_button
         login_button.grid(row=2)
 
-        back_button = ctk.CTkButton(
+        back_button = ttk.Button(
             self.frame,
             text="Back",
-            bg_color=OFF_WHITE,
-            fg_color=LABEL_COLOUR,
-            font=DEFAULT_FONT_STYLE,
-            border_width=0,
             command=lambda: self.create_login_buttons(),
         )
         self.buttons["back"] = back_button
         back_button.grid(row=3)
+
+    def get_auth_token(self):
+        try:
+            payload = {"username": self.username.get(), "password": self.password.get()}
+            response = requests.post(f"{URL}{LOGIN_ENDPOINT}", data=payload)
+            response.raise_for_status()
+            self.token = response.json()
+            return True
+
+        except:
+            print("Auth token request failed")
 
     def create_signup_screen(self):
         print("'Sign up' clicked")
@@ -144,11 +155,12 @@ class Chattr:
         self.delete_buttons()
         self.delete_entries()
 
-    def create_display_frame(self):
-        frame = ctk.CTkFrame(
-            self.window, height=221, bg_color="white", fg_color="white"
-        )
-        frame.pack(expand=True, fill="both")
+    def create_display_frame(self) -> tk.Frame:
+        frame = ttk.Frame(
+            self.window, height=self.height, width=self.width
+        )  # , background="white", foreground="white")
+
+        frame.grid(row=0, column=0)
         return frame
 
     def run(self):
