@@ -9,8 +9,6 @@ import requests
 
 from networking.connect_websocket import MyWebSocket
 
-# import customtkinter as ctk
-
 LARGE_FONT_STYLE = ("Arial", 40, "bold")
 SMALL_FONT_STYLE = ("Arial", 16)
 DIGIT_FONT_STYLE = ("Arial", 24, "bold")
@@ -153,7 +151,7 @@ class Chattr:
 
     def process_login(self):
         self.client_websocket = MyWebSocket(self.auth_token)
-        self.loop.create_task(self.connect_client_websocket())
+        # self.loop.create_task(self.connect_client_websocket())
 
         # Start the asyncio loop in a separate thread
         self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
@@ -253,8 +251,6 @@ class Chattr:
         self.text_field = tk.Text(
             self.window,
             width=self.width,
-            # height=200,  # Set height to a smaller number of lines
-            # background=OFF_WHITE,
             state="disabled",
             wrap="word",
         )
@@ -295,9 +291,7 @@ class Chattr:
         message_entry.bind("<Return>", self.send_message)
         self.entries["write_message"] = message_entry
 
-        send_button = ttk.Button(
-            self.window, text="Send", command=self.send_message
-        )  # width=50, height=20,
+        send_button = ttk.Button(self.window, text="Send", command=self.send_message)
         send_button.grid(row=1, column=1)
         self.buttons["send"] = send_button
 
