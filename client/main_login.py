@@ -181,6 +181,3 @@ class Chattr:
 if __name__ == "__main__":
     chattr = Chattr()
     chattr.run()
-
-#! Keep working on websocket auth with token, verify connection is authorized. Possible bug with token expiry time.
-#! Make login get a token to ensure it's valid, rather than hardcoding.
