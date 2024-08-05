@@ -7,9 +7,8 @@ WEBSOCKET_ENDPOINT = "/ws"
 
 
 class MyWebSocket:
-    def __init__(self, auth_token):  # , manager):
-        # self.username: str = username
-        self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"  # {self.username}"
+    def __init__(self, auth_token: dict):
+        self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"
         self.websocket: websockets = None
         self.new_message: str | None = None
         self.auth_token = auth_token
@@ -17,9 +16,8 @@ class MyWebSocket:
     async def connect(self):
         try:
             extra_headers = {
-                "Authorization": f"Bearer {self.auth_token.get('access_token')}"
+                "Authorization": f"Bearer {self.auth_token.get('access_token', '')}"
             }
-            print(f"Connecting with headers: {extra_headers}")
             self.websocket = await websockets.connect(
                 self.websocket_url,
                 ping_interval=20,
