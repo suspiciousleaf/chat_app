@@ -160,7 +160,6 @@ connection_man = ConnectionManager()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
     try:
         auth_header = websocket.headers.get("Authorization")
         print(f"Received auth header: {auth_header}")
@@ -170,7 +169,6 @@ async def websocket_endpoint(websocket: WebSocket):
             return
 
         token = auth_header.split("Bearer ")[1]
-        print(f"Extracted token: {token}")
 
         try:
             current_user = await get_current_user(token)
@@ -194,21 +192,6 @@ async def websocket_endpoint(websocket: WebSocket):
         await connection_man.disconnect(active_user.username)
 
 
-# @app.websocket("/ws/{username}")
-# async def websocket_endpoint(websocket: WebSocket, username: str):
-#     # TODO Move client_id and bearer token to header
-#     await connection_man.connect(websocket, username)
-#     try:
-#         while True:
-#             data = await websocket.receive_text()
-#             connection_man.message_store.append(data)
-#             await connection_man.redis_man.enqueue_message(data)
-#     except WebSocketDisconnect:
-#         await connection_man.disconnect(username)
-#     except asyncio.CancelledError:
-#         await connection_man.disconnect(username)
-
-
 @app.on_event("startup")
 async def startup_event():
     loop = asyncio.get_event_loop()
@@ -229,4 +212,6 @@ async def shutdown_event():
     connection_man.active_connections.clear()
 
 
-#! First draft, try connecting and test behaviour
+# TODO Retrieve channel subscriptions on user login
+# TODO Add ability for people to update their channel subscriptions via endpoint
+# TODO Add database functions to update channel subscriptions
