@@ -5,6 +5,7 @@ import asyncio
 import threading
 import json
 from json import JSONDecodeError
+import requests
 
 from networking.connect_websocket import MyWebSocket
 
@@ -21,6 +22,9 @@ LIGHT_BLUE = "#CCEDFF"
 LIGHT_GRAY = "#F5F5F5"
 LABEL_COLOUR = "#25265E"
 
+URL = "http://127.0.0.1:8000"
+LOGIN_ENDPOINT = "/auth/token"
+
 
 class Chattr:
     def __init__(self):
@@ -28,33 +32,180 @@ class Chattr:
         self.width = 375
         self.height = 375
         self.window.geometry(f"{self.width}x{self.height}")
-        # self.window.resizable(0, 0)
         self.window.title("Chattr")
-        self.buttons = {}
-        self.labels = {}
-        self.entries = {}
-        self.username = "username_1"
-        self.auth_token = {
-            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VybmFtZV8xIiwiZXhwIjoxNzIyODMzODc5fQ.EIU9JYh1nk_2d-RZvzhaOjDQw7mfIR5LB5BxyCgwJcc",
-            "token_type": "bearer",
-        }
-        self.client_websocket = MyWebSocket(self.auth_token)
+        self.buttons: dict[str : tk.Button] = {}
+        self.labels: dict[str : tk.Label] = {}
+        self.entries: dict[str : tk.Entry] = {}
+        self.frame: tk.Frame = self.create_display_frame()
+        self.username: tk.StringVar = tk.StringVar(value="username")
+        self.password: tk.StringVar = tk.StringVar(value="password")
+        self.auth_token: dict[str:str] = {}
+        self.client_websocket: MyWebSocket | None = None  # MyWebSocket(self.auth_token)
+
+        self.create_startup_screen()
+        self.configure_responsive()
 
         self.loop = asyncio.get_event_loop()
-        self.loop.create_task(self.connect_client_websocket())
+        # self.loop.create_task(self.connect_client_websocket())
 
         # self.frame = self.create_display_frame()
-        self.username = tk.StringVar(value="username")
-        self.password = tk.StringVar(value="password")
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
-        self.create_text_field()
-        self.create_text_entry()
-        self.configure_responsive()
+        # self.create_text_field()
+        # self.create_text_entry()
+
+        # Start the asyncio loop in a separate thread
+        # self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
+        # self.thread.start()
+
+    def create_startup_screen(self):
+        """Create the initial screen with "Login" and "Sign up" options"""
+        self.delete_all()
+        self.create_login_button()
+        self.create_signup_button()
+
+    def create_login_button(self):
+        """Create the "Login" button"""
+        self.username.set("username_1")
+        self.password.set("password_1")
+        login_button = ttk.Button(
+            self.frame,
+            text="Log in",
+            command=lambda: self.create_login_screen(),
+        )
+        self.buttons["login"] = login_button
+        login_button.grid(row=0, column=0)  # , sticky="ew")
+
+    def create_signup_button(self):
+        """Create the "Sign up" button"""
+        signup_button = ttk.Button(
+            self.frame,
+            text="Create account",
+            command=lambda: self.create_signup_screen(),
+        )
+        self.buttons["signup"] = signup_button
+        signup_button.grid(row=1, column=0)  # , sticky="ew")
+
+    def create_login_screen(self):
+        # Clear the screen
+        self.delete_all()
+        self.create_login_username_entry()
+        self.create_login_password_entry()
+        self.create_login_submit_button()
+        self.create_login_back_button()
+
+    def create_login_username_entry(self):
+        """Create 'username' entry field"""
+        username_entry = ttk.Entry(
+            self.frame,
+            background=WHITE,
+            foreground=LABEL_COLOUR,
+            font=SMALL_FONT_STYLE,
+            exportselection=0,
+        )
+        self.entries["username_entry"] = username_entry
+        username_entry.grid(row=0, column=0)
+        username_entry["textvariable"] = self.username
+        username_entry.bind("<Key-Return>", self.print_contents)
+
+    def create_login_password_entry(self):
+        """Create 'password' entry field"""
+        password_entry = ttk.Entry(
+            self.frame,
+            background=WHITE,
+            foreground=LABEL_COLOUR,
+            font=SMALL_FONT_STYLE,
+            exportselection=0,
+            show="*",
+        )
+        self.entries["password_entry"] = password_entry
+        password_entry.grid(row=1, column=0)
+        password_entry["textvariable"] = self.password
+        password_entry.bind("<Key-Return>", self.print_contents)
+
+    def create_login_submit_button(self):
+        """Create login 'submit' button"""
+        login_button = ttk.Button(
+            self.frame,
+            text="Log in",
+            command=lambda: self.submit_login(),
+        )
+        self.buttons["login"] = login_button
+        login_button.grid(row=2)
+
+    def create_login_back_button(self):
+        """Create login 'back' button"""
+        back_button = ttk.Button(
+            self.frame,
+            text="Back",
+            command=lambda: self.create_startup_screen(),
+        )
+        self.buttons["back"] = back_button
+        back_button.grid(row=3)
+
+    def submit_login(self):
+        self.auth_token = self.get_auth_token()
+        if self.auth_token:
+            self.delete_all()
+            self.process_login()
+            # This will create the chat screen if login is successfull
+            self.create_chat()
+
+    def process_login(self):
+        self.client_websocket = MyWebSocket(self.auth_token)
+        self.loop.create_task(self.connect_client_websocket())
 
         # Start the asyncio loop in a separate thread
         self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
         self.thread.start()
+
+    def create_chat(self):
+        """Creates the main chat window if login is successfull"""
+
+        self.message_text = tk.StringVar(value="")
+        self.screen_text = tk.StringVar(value="Messages will appear here")
+        self.create_text_field()
+        self.create_text_entry()
+
+    def get_auth_token(self) -> dict | None:
+        """Submits username and password to get a bearer token from the server"""
+        try:
+            payload = {"username": self.username.get(), "password": self.password.get()}
+            response = requests.post(f"{URL}{LOGIN_ENDPOINT}", data=payload)
+            response.raise_for_status()
+            return response.json()
+
+        except Exception as e:
+            print(f"Auth token request failed: {e}")
+
+    def create_signup_screen(self):
+        """Create the sign up screen with input elements and buttons, called by clicking the "Sign up" button"""
+        print("'Sign up' clicked")
+        self.delete_all()
+
+    def delete_buttons(self):
+        """Delete all Button elements"""
+        for button in self.buttons:
+            self.buttons[button].grid_forget()
+        self.buttons.clear()
+
+    def delete_entries(self):
+        """Delete all Entry elements"""
+        for entry in self.entries:
+            self.entries[entry].grid_forget()
+        self.entries.clear()
+
+    def delete_labels(self):
+        """Delete all Label elements"""
+        for label in self.labels:
+            self.labels[label].grid_forget()
+        self.labels.clear()
+
+    def delete_all(self):
+        """Delete all elements on the screen, excluding Frame"""
+        self.delete_labels()
+        self.delete_buttons()
+        self.delete_entries()
 
     def run_async_loop(self):
         asyncio.set_event_loop(self.loop)
@@ -103,7 +254,7 @@ class Chattr:
             self.window,
             width=self.width,
             # height=200,  # Set height to a smaller number of lines
-            background=OFF_WHITE,
+            # background=OFF_WHITE,
             state="disabled",
             wrap="word",
         )
@@ -174,11 +325,13 @@ class Chattr:
         self.delete_buttons()
         self.delete_entries()
 
-    def create_display_frame(self):
+    def create_display_frame(self) -> tk.Frame:
+        """Create the display Frame element"""
         frame = ttk.Frame(
-            self.window, height=221, background="white", foreground="white"
-        )
-        frame.pack(expand=True, fill="both")
+            self.window, height=self.height, width=self.width
+        )  # , background="white", foreground="white")
+
+        frame.grid(row=0, column=0)
         return frame
 
     def run(self):
