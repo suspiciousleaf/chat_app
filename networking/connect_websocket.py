@@ -11,7 +11,7 @@ class MyWebSocket:
         self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"
         self.websocket: websockets = None
         self.new_message: str | None = None
-        self.auth_token = auth_token
+        self.auth_token: dict = auth_token
 
     async def connect(self):
         try:
