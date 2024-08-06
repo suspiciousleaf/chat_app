@@ -37,6 +37,7 @@ class Chattr:
         self.buttons: dict[str : tk.Button] = {}
         self.labels: dict[str : tk.Label] = {}
         self.entries: dict[str : tk.Entry] = {}
+        self.fields: dict = {}
         self.frame: tk.Frame = self.create_display_frame()
         self.username: tk.StringVar = tk.StringVar(value="username")
         self.password: tk.StringVar = tk.StringVar(value="password")
@@ -49,11 +50,8 @@ class Chattr:
         self.loop = asyncio.get_event_loop()
         # self.loop.create_task(self.connect_client_websocket())
 
-        # self.frame = self.create_display_frame()
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
-        # self.create_text_field()
-        # self.create_text_entry()
 
         # Start the asyncio loop in a separate thread
         # self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
@@ -75,7 +73,7 @@ class Chattr:
             command=lambda: self.create_login_screen(),
         )
         self.buttons["login"] = login_button
-        login_button.grid(row=0, column=0)  # , sticky="ew")
+        login_button.grid(row=0, column=0)
 
     def create_signup_button(self):
         """Create the "Sign up" button"""
@@ -85,7 +83,7 @@ class Chattr:
             command=lambda: self.create_signup_screen(),
         )
         self.buttons["signup"] = signup_button
-        signup_button.grid(row=1, column=0)  # , sticky="ew")
+        signup_button.grid(row=1, column=0)
 
     def create_login_screen(self):
         # Clear the screen
@@ -96,7 +94,7 @@ class Chattr:
         self.create_back_button()
 
     def create_username_entry(self):
-        """Create 'username' entry field"""
+        """Create 'username' entry widget"""
         username_entry = ttk.Entry(
             self.frame,
             background=WHITE,
@@ -110,7 +108,7 @@ class Chattr:
         username_entry.bind("<Key-Return>", self.print_contents)
 
     def create_password_entry(self):
-        """Create 'password' entry field"""
+        """Create 'password' entry widget"""
         password_entry = ttk.Entry(
             self.frame,
             background=WHITE,
@@ -146,10 +144,10 @@ class Chattr:
 
     def submit_login(self):
         self.auth_token = self.get_auth_token()
+        # This will create the chat screen if login is successfull
         if self.auth_token:
             self.delete_all()
             self.process_login()
-            # This will create the chat screen if login is successfull
             self.create_chat()
 
     def process_login(self):
@@ -218,6 +216,8 @@ class Chattr:
             "password": self.password.get().strip(),
         }
         try:
+            self.entries["username_entry"].config(state="readonly")
+            self.entries["password_entry"].config(state="readonly")
             response = requests.post(
                 f"{URL}{CREATE_ACCOUNT_ENDPOINT}", json=account_info
             )
@@ -231,6 +231,8 @@ class Chattr:
 
             elif response.status_code == 409:
                 self.labels["signup_info"].config(text="Username already exists")
+                self.entries["username_entry"].config(state="normal")
+                self.entries["password_entry"].config(state="normal")
             else:
                 try:
                     issues: list = []
@@ -240,11 +242,13 @@ class Chattr:
                             f"{issue.get('msg').replace('String', element_name)}"
                         )
                     self.labels["signup_info"].config(text="\n".join(issues))
-
-                    print(response.json())
+                    self.entries["username_entry"].config(state="normal")
+                    self.entries["password_entry"].config(state="normal")
 
                 except:
                     self.labels["signup_info"].config(text="Account creation failed")
+                    self.frame.after(2500, self.create_startup_screen)
+
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {e}")
 
@@ -301,10 +305,10 @@ class Chattr:
         self.window.after(0, self.update_text_field, display_text)
 
     def update_text_field(self, text):
-        self.text_field.config(state="normal")
-        self.text_field.insert(tk.END, text)
-        self.text_field.config(state="disabled")
-        self.text_field.yview(tk.END)  # Auto-scroll to the bottom
+        self.fields["text"].config(state="normal")
+        self.fields["text"].insert(tk.END, text)
+        self.fields["text"].config(state="disabled")
+        self.fields["text"].yview(tk.END)  # Auto-scroll to the bottom
 
     def decode_received_message(self, message):
         try:
@@ -315,13 +319,14 @@ class Chattr:
             print(f"Unknown error occurred when decoding message: {e}")
 
     def create_text_field(self):
-        self.text_field = tk.Text(
+        text_field = tk.Text(
             self.window,
             width=self.width,
             state="disabled",
             wrap="word",
         )
-        self.text_field.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        text_field.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.fields["text"] = text_field
 
     def configure_responsive(self):
         # Configure grid row and column weights for responsive behaviour
@@ -332,11 +337,11 @@ class Chattr:
     def send_message(self, event=None):
         message = self.entries["write_message"].get()
         if message.strip():  # Check if the message is not empty
-            self.text_field.config(state="normal")
+            self.fields["text"].config(state="normal")
             current_time = datetime.datetime.now().strftime("%H:%M")
-            self.text_field.insert(tk.END, f"{current_time} You: {message}\n")
-            self.text_field.config(state="disabled")
-            self.text_field.yview(tk.END)  # Auto-scroll to the bottom
+            self.fields["text"].insert(tk.END, f"{current_time} You: {message}\n")
+            self.fields["text"].config(state="disabled")
+            self.fields["text"].yview(tk.END)  # Auto-scroll to the bottom
             self.entries["write_message"].delete(0, tk.END)
 
     #! Add code to send messages in the correct format, write function below and trigger here
