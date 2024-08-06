@@ -8,3 +8,4 @@ if __name__ == "__main__":
 # TODO Make chat app ping server on startup to ensure it is available
 # TODO Go through server files and reduce to one
 # TODO Check ws login event loop thread logic and behaviour
+# TODO Add send message functionality

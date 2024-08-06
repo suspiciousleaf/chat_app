@@ -6,7 +6,7 @@ import logging
 import sys
 
 
-SERVER_FILENAME = "server_3"
+SERVER_FILENAME = "server"
 
 
 def configure_logging():
