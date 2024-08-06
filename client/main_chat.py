@@ -355,9 +355,8 @@ class Chattr:
             # Message formatted as json to send to server
             formatted_message: dict = {
                 # TODO change channel hardcoding to dynamic once implemented
+                # Username is added in the server from the bearer token to ensure accuracy
                 "channel": "welcome",
-                # TODO Get username on server from ws connection
-                "sender": self.username.get(),
                 "content": message.strip(),
                 "timestamp": current_time,
             }

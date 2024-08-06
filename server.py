@@ -16,6 +16,7 @@ import asyncio
 from pathlib import Path
 from os import getenv
 from dotenv import load_dotenv
+from pprint import pprint
 
 from routers.auth import router as auth_router
 from routers.auth import User, get_current_active_user, get_current_user
@@ -53,8 +54,9 @@ class RedisManager:
     def __init__(self):
         self.redis = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
-    async def enqueue_message(self, message: str):
-        await asyncio.to_thread(self.redis.rpush, REDIS_QUEUE, message)
+    async def enqueue_message(self, message: dict):
+        message_as_string = json.dumps(message)
+        await asyncio.to_thread(self.redis.rpush, REDIS_QUEUE, message_as_string)
         # await self.redis.rpush(REDIS_QUEUE, message)
 
     async def dequeue_message(self) -> str:
@@ -202,9 +204,11 @@ async def websocket_endpoint(websocket: WebSocket):
         await connection_man.connect(websocket, active_user.username)
 
         while True:
-            data = await websocket.receive_text()
-            connection_man.message_store.append(data)
-            await connection_man.redis_man.enqueue_message(data)
+            message: str = await websocket.receive_text()
+            message_dict: dict = json.loads(message)
+            message_dict["sender"] = active_user.username
+            connection_man.message_store.append(message_dict)
+            await connection_man.redis_man.enqueue_message(message_dict)
     except WebSocketDisconnect:
         await connection_man.disconnect(active_user.username)
     except asyncio.CancelledError:
