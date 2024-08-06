@@ -6,6 +6,7 @@ from fastapi import (
     status,
     Depends,
 )
+from pydantic import BaseModel, Field
 from redis.exceptions import ConnectionError, TimeoutError
 from contextlib import asynccontextmanager
 import json
@@ -13,11 +14,17 @@ import redis
 import time
 import asyncio
 from pathlib import Path
+from os import getenv
 from dotenv import load_dotenv
 
 from routers.auth import router as auth_router
 from routers.auth import User, get_current_active_user, get_current_user
-from db_module.db_utilities import retrieve_channels
+from db_module.db_utilities import (
+    send_message,
+    retrieve_channels,
+    create_account,
+    retrieve_existing_accounts,
+)
 
 
 app = FastAPI()
@@ -64,17 +71,17 @@ class ConnectionManager:
         self.redis_man = RedisManager()
         # self.user_channels: dict[str:list[str]] = {}
         self.listener_task = None
-        self.message_store = []
-        self.time_since_message_backup = time.time()
+        self.message_store: list = []
+        self.time_since_message_backup: float = time.time()
 
     async def connect(self, websocket: WebSocket, username: str):
         await websocket.accept()
         # TODO Use GUI login to provide bearer token to client, use this to authorize the websocket connection and add logic here. Store tokens in Redis.
-        #! print(f"Websocket connection requested for user: {username}")
-        channels = set(("welcome",))  #!retrieve_channels(username=username)
-        # print(f"User is a member of {channels} channels")
-        # # Add all users to the "welcome" channel
-        # channels.add("welcome")
+        # print(f"Websocket connection requested for user: {username}")
+        channels: set = retrieve_channels(username=username)
+        channels.add("welcome")
+        print(f"User is a member of {channels} channels")
+        # Add all users to the "welcome" channel
         self.active_connections[username] = {"ws": websocket, "channels": channels}
         # self.active_connections[username] = websocket
         # self.user_channels[username] = await self.get_user_channels(username)
@@ -92,7 +99,7 @@ class ConnectionManager:
         # if connection["ws"]:
         #     await connection["ws"].close()
         self.active_connections.pop(username, None)
-        #! print(f"Disconnected user: {username}")
+        # print(f"Disconnected user: {username}")
 
         # Disable listener if there are no active connections
         if not self.active_connections and self.listener_task:
@@ -115,10 +122,10 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         channel = message.get("channel")
-        #! print(f"Channel as seen by broadcast: {channel}")
+        # print(f"Channel as seen by broadcast: {channel}")
         for username, user_connection in self.active_connections.items():
             if channel in user_connection["channels"]:
-                #! print(f"Sending {message} to {username}")
+                # print(f"Sending {message} to {username}")
                 await user_connection["ws"].send_text(json.dumps(message))
 
     async def listen_for_messages(self):
@@ -156,6 +163,17 @@ class ConnectionManager:
 
 
 connection_man = ConnectionManager()
+
+
+class AccountCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6, max_length=255)
+
+
+# Endpoint to create an account
+@app.post("/create_account", status_code=status.HTTP_201_CREATED)
+async def create_account_endpoint(account: AccountCreate):
+    return create_account(account.username, account.password)
 
 
 @app.websocket("/ws")
