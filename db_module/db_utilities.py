@@ -135,7 +135,7 @@ def retrieve_existing_accounts(db, cursor):
 
 
 @connect_to_database
-def retrieve_channels(db, cursor, username: str) -> set | None:
+def retrieve_channels(db, cursor, username: str) -> set:
 
     # Change cursor to not return a dict, as only one channel is being retrieved
     cursor = db.cursor()
@@ -145,7 +145,10 @@ def retrieve_channels(db, cursor, username: str) -> set | None:
 
     channels = cursor.fetchone()[0]
 
-    return set(channels)
+    if channels is None:
+        return set()
+    else:
+        return set(channels)
 
 
 async def send_message(username, channel, content):
