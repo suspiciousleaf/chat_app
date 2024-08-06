@@ -6,11 +6,13 @@ import threading
 import json
 from json import JSONDecodeError
 import requests
+import time
 
 from networking.connect_websocket import MyWebSocket
 
 LARGE_FONT_STYLE = ("Arial", 40, "bold")
 SMALL_FONT_STYLE = ("Arial", 16)
+VERY_SMALL_FONT_STYLE = ("Arial", 12)
 DIGIT_FONT_STYLE = ("Arial", 24, "bold")
 DEFAULT_FONT_STYLE = ("Arial", 20)
 
@@ -22,6 +24,7 @@ LABEL_COLOUR = "#25265E"
 
 URL = "http://127.0.0.1:8000"
 LOGIN_ENDPOINT = "/auth/token"
+CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
 
 class Chattr:
@@ -87,12 +90,12 @@ class Chattr:
     def create_login_screen(self):
         # Clear the screen
         self.delete_all()
-        self.create_login_username_entry()
-        self.create_login_password_entry()
+        self.create_username_entry()
+        self.create_password_entry()
         self.create_login_submit_button()
-        self.create_login_back_button()
+        self.create_back_button()
 
-    def create_login_username_entry(self):
+    def create_username_entry(self):
         """Create 'username' entry field"""
         username_entry = ttk.Entry(
             self.frame,
@@ -106,7 +109,7 @@ class Chattr:
         username_entry["textvariable"] = self.username
         username_entry.bind("<Key-Return>", self.print_contents)
 
-    def create_login_password_entry(self):
+    def create_password_entry(self):
         """Create 'password' entry field"""
         password_entry = ttk.Entry(
             self.frame,
@@ -131,8 +134,8 @@ class Chattr:
         self.buttons["login"] = login_button
         login_button.grid(row=2)
 
-    def create_login_back_button(self):
-        """Create login 'back' button"""
+    def create_back_button(self):
+        """Create 'back' button"""
         back_button = ttk.Button(
             self.frame,
             text="Back",
@@ -168,7 +171,10 @@ class Chattr:
     def get_auth_token(self) -> dict | None:
         """Submits username and password to get a bearer token from the server"""
         try:
-            payload = {"username": self.username.get(), "password": self.password.get()}
+            payload = {
+                "username": self.username.get().strip(),
+                "password": self.password.get().strip(),
+            }
             response = requests.post(f"{URL}{LOGIN_ENDPOINT}", data=payload)
             response.raise_for_status()
             return response.json()
@@ -178,8 +184,69 @@ class Chattr:
 
     def create_signup_screen(self):
         """Create the sign up screen with input elements and buttons, called by clicking the "Sign up" button"""
-        print("'Sign up' clicked")
         self.delete_all()
+
+        # Clear the screen
+        self.create_signup_info_label()
+        self.create_username_entry()
+        self.create_password_entry()
+        self.create_signup_submit_button()
+        self.create_back_button()
+
+    def create_signup_info_label(self):
+        signup_info_label = ttk.Label(
+            self.frame,
+            text="Enter username and password",
+            font=VERY_SMALL_FONT_STYLE,
+        )
+        signup_info_label.grid(row=4, column=0)
+        self.labels["signup_info"] = signup_info_label
+
+    def create_signup_submit_button(self):
+        """Create signup 'submit' button"""
+        signup_button = ttk.Button(
+            self.frame,
+            text="Submit",
+            command=lambda: self.submit_signup(),
+        )
+        self.buttons["signup"] = signup_button
+        signup_button.grid(row=2)
+
+    def submit_signup(self):
+        account_info = {
+            "username": self.username.get().strip(),
+            "password": self.password.get().strip(),
+        }
+        try:
+            response = requests.post(
+                f"{URL}{CREATE_ACCOUNT_ENDPOINT}", json=account_info
+            )
+
+            # If account is created successfully, let the user know, wait 2.5s, and then log in with those credentials
+            if response.status_code == 201:
+                self.labels["signup_info"].config(
+                    text="Account created successfully,\nLogging in now..."
+                )
+                self.frame.after(2500, self.submit_login)
+
+            elif response.status_code == 409:
+                self.labels["signup_info"].config(text="Username already exists")
+            else:
+                try:
+                    issues: list = []
+                    for issue in response.json().get("detail"):
+                        element_name: str = issue.get("loc")[1].title()
+                        issues.append(
+                            f"{issue.get('msg').replace('String', element_name)}"
+                        )
+                    self.labels["signup_info"].config(text="\n".join(issues))
+
+                    print(response.json())
+
+                except:
+                    self.labels["signup_info"].config(text="Account creation failed")
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred: {e}")
 
     def delete_buttons(self):
         """Delete all Button elements"""
