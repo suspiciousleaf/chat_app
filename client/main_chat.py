@@ -29,9 +29,9 @@ CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
 class Chattr:
     def __init__(self):
-        self.window = tk.Tk()
-        self.width = 375
-        self.height = 375
+        self.window: tk.Tk = tk.Tk()
+        self.width: int = 375
+        self.height: int = 375
         self.window.geometry(f"{self.width}x{self.height}")
         self.window.title("Chattr")
         self.buttons: dict[str : tk.Button] = {}
@@ -334,6 +334,14 @@ class Chattr:
         self.window.columnconfigure(0, weight=1)
         self.window.columnconfigure(1, weight=0)
 
+    # Format for message:
+    # {
+    #   "channel": "username_1",
+    #   "sender": "user123",
+    #   "content": "Hello, world!",
+    #   "timestamp": "2023-07-25T12:34:56Z"
+    # }
+
     def send_message(self, event=None):
         message = self.entries["write_message"].get()
         if message.strip():  # Check if the message is not empty
@@ -343,6 +351,19 @@ class Chattr:
             self.fields["text"].config(state="disabled")
             self.fields["text"].yview(tk.END)  # Auto-scroll to the bottom
             self.entries["write_message"].delete(0, tk.END)
+            # Message formatted as json to send to server
+            formatted_message: dict = {
+                # TODO change channel hardcoding to dynamic once implemented
+                "channel": "welcome",
+                # TODO Get username on server from ws connection
+                "sender": self.username.get(),
+                "content": message.strip(),
+                "timestamp": current_time,
+            }
+            # self.loop.create_task(self.client_websocket.send_message(formatted_message))
+            asyncio.run_coroutine_threadsafe(
+                self.client_websocket.send_message(formatted_message), self.loop
+            )
 
     #! Add code to send messages in the correct format, write function below and trigger here
     #         # Send message through WebSocket

@@ -1,6 +1,7 @@
 import asyncio
 import websockets
 import time
+import json
 
 WS_URL = "ws://127.0.0.1:8000"
 WEBSOCKET_ENDPOINT = "/ws"
@@ -34,6 +35,9 @@ class MyWebSocket:
             print("Connection failed. Reconnecting in 5 seconds...")
             await asyncio.sleep(5)
             await self.connect()
+
+    async def send_message(self, message: dict):
+        await self.websocket.send(json.dumps(message))
 
     # async def receive_messages(self):
     #     try:
