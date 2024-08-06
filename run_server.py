@@ -45,7 +45,7 @@ def run():
     # configure_logging()
 
     config = Config(
-        "server_3:app", host="127.0.0.1", port=8000, log_level="warning", reload=True
+        "server:app", host="127.0.0.1", port=8000, log_level="warning", reload=True
     )
     server = Server(config)
     server.run()
