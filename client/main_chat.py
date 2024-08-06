@@ -42,6 +42,7 @@ class Chattr:
         self.username: tk.StringVar = tk.StringVar(value="username")
         self.password: tk.StringVar = tk.StringVar(value="password")
         self.auth_token: dict[str:str] = {}
+        self.server_status = self.check_server_status()
         self.client_websocket: MyWebSocket | None = None  # MyWebSocket(self.auth_token)
 
         self.create_startup_screen()
@@ -420,6 +421,16 @@ class Chattr:
 
         frame.grid(row=0, column=0)
         return frame
+
+    def check_server_status(self):
+        """Ping the server to check if it is running"""
+        try:
+            response = requests.get(f"{URL}/")
+            response.raise_for_status()
+            print(f"Server status: {response.json().get('status')}")
+            return response.json().get("status")
+        except:
+            return "unavailable"
 
     def run(self):
         self.window.mainloop()
