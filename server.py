@@ -43,9 +43,10 @@ RECONNECT_DELAY = 5  # seconds
 
 
 # Endpoint to ping server
-@app.get("/")
+# TODO Add server diagnostics, eg confirm database and redis connections are live, and report back here
+@app.get("/", status_code=status.HTTP_200_OK)
 def ping():
-    return "WS chat app server running"
+    return {"status": "ready"}
 
 
 class RedisManager:
