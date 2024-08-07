@@ -20,13 +20,16 @@ from pprint import pprint
 
 from routers.auth import router as auth_router
 from routers.auth import User, get_current_active_user, get_current_user
-from db_module.db_utilities import (
-    send_message,
-    retrieve_channels,
-    create_account,
-    retrieve_existing_accounts,
-)
 
+# from db_module.db_utilities import (
+#     send_message,
+#     retrieve_channels,
+#     create_account,
+#     retrieve_existing_accounts,
+# )
+from db_module.db_sqlite_multi import DatabaseManager
+
+db = DatabaseManager()
 
 app = FastAPI()
 
@@ -48,6 +51,12 @@ RECONNECT_DELAY = 5  # seconds
 @app.get("/", status_code=status.HTTP_200_OK)
 def ping():
     return {"status": "ready"}
+
+
+@app.get("/tables")
+def tables():
+    db.init_database()
+    return db.list_tables()
 
 
 class RedisManager:
@@ -81,7 +90,8 @@ class ConnectionManager:
         await websocket.accept()
         # TODO Use GUI login to provide bearer token to client, use this to authorize the websocket connection and add logic here. Store tokens in Redis.
         # print(f"Websocket connection requested for user: {username}")
-        channels: set = retrieve_channels(username=username)
+        #! channels: set = retrieve_channels(username=username)
+        channels = db.retrieve_channels(username)
         channels.add("welcome")
         print(f"User is a member of {channels} channels")
         # Add all users to the "welcome" channel
@@ -176,7 +186,8 @@ class AccountCreate(BaseModel):
 # Endpoint to create an account
 @app.post("/create_account", status_code=status.HTTP_201_CREATED)
 async def create_account_endpoint(account: AccountCreate):
-    return create_account(account.username, account.password)
+    # return create_account(account.username, account.password)
+    return db.create_account(account.username, account.password)
 
 
 @app.websocket("/ws")
@@ -233,6 +244,7 @@ async def shutdown_event():
     for username, connection in connection_man.active_connections.items():
         await connection["ws"].close()
     connection_man.active_connections.clear()
+    db.close_all()
 
 
 # TODO Retrieve channel subscriptions on user login

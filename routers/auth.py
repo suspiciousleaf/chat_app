@@ -7,7 +7,9 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 from os import getenv
 import time
-from db_module.db_utilities import retrieve_existing_accounts
+
+# from db_module.db_utilities import retrieve_existing_accounts
+from db_module.db_sqlite_multi import DatabaseManager
 
 
 load_dotenv()
@@ -17,6 +19,9 @@ ALGORITHM = getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 600
 ROUTER_PREFIX = "/auth"
 CRYPTCONTEXT_SCHEME = getenv("CRYPTCONTEXT_SCHEME")
+
+
+db = DatabaseManager()
 
 
 class Token(BaseModel):
@@ -51,7 +56,8 @@ def get_password_hash(plaintext_password):
 
 
 def get_user(username: str):
-    accounts = retrieve_existing_accounts()
+    # accounts = retrieve_existing_accounts()
+    accounts = db.retrieve_existing_accounts()
     if username in accounts:
         user_data = accounts[username]
         return UserInDB(**user_data)
