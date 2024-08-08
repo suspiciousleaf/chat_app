@@ -21,13 +21,7 @@ from pprint import pprint
 from routers.auth import router as auth_router
 from routers.auth import User, get_current_active_user, get_current_user
 
-# from db_module.db_utilities import (
-#     send_message,
-#     retrieve_channels,
-#     create_account,
-#     retrieve_existing_accounts,
-# )
-from db_module.db_sqlite_multi import DatabaseManager
+from db_module.db_manager import DatabaseManager
 
 db = DatabaseManager()
 
