@@ -59,6 +59,12 @@ def tables():
     return db.list_tables()
 
 
+@app.get("/filepath")
+def get_filepath():
+    db.init_database()
+    return db.read_db_filepath()
+
+
 class RedisManager:
     def __init__(self):
         self.redis = redis.Redis.from_url(REDIS_URL, decode_responses=True)
