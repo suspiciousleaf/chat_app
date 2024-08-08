@@ -1,4 +1,4 @@
-from os import getenv
+from os import getenv, path
 from dotenv import load_dotenv
 from fastapi import status, HTTPException
 from passlib.context import CryptContext
@@ -11,6 +11,7 @@ load_dotenv()
 
 CRYPTCONTEXT_SCHEME = getenv("CRYPTCONTEXT_SCHEME")
 DB_NAME = getenv("DB_NAME")
+
 
 pwd_context = CryptContext(schemes=[CRYPTCONTEXT_SCHEME], deprecated="auto")
 
@@ -26,12 +27,14 @@ class DatabaseConnectionError(Exception):
 class DatabaseManager:
     def __init__(self):
         self.DB_NAME = DB_NAME
+        # This is used to ensure a constant filepath for the database file, otherwise it changes based on the cwd
+        self.DB_FILEPATH = self.create_db_filepath()
         self._local = local()
 
     @contextmanager
     def get_connection(self):
         if not hasattr(self._local, "conn"):
-            self._local.conn = sqlite3.connect(self.DB_NAME)
+            self._local.conn = sqlite3.connect(self.DB_FILEPATH)
         try:
             yield self._local.conn
         finally:
@@ -200,11 +203,22 @@ class DatabaseManager:
         tables = self.select_query(query, values)
         return tables
 
+    def create_db_filepath(self):
+        base_dir = path.dirname(path.abspath(__file__))
+        return path.join(base_dir, DB_NAME)
+
+    def read_db_filepath(self):
+        with self.get_connection() as conn:
+            database_path = conn.execute("PRAGMA database_list").fetchone()[2]
+            return f"Database file path: {database_path}"
+
     def close_all(self):
         self._local.conn.close()
 
 
-# Usage
-db = DatabaseManager()
+# # Usage
+# db = DatabaseManager()
 # db.init_database()
-print(db.retrieve_channels("username_1"))
+# print(f"{db.list_tables()=}")
+# print(db.read_db_filepath())
+# print(db.retrieve_channels("username_1"))
