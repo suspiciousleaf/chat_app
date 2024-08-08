@@ -27,9 +27,10 @@ class DatabaseConnectionError(Exception):
 class DatabaseManager:
     def __init__(self):
         self.DB_NAME = DB_NAME
-        # This is used to ensure a constant filepath for the database file, otherwise it changes based on the cwd
+        # This is used to ensure a constant filepath for the database file inside the db_module directory, otherwise it changes based on the cwd
         self.DB_FILEPATH = self.create_db_filepath()
         self._local = local()
+        self.init_database()
 
     @contextmanager
     def get_connection(self):
@@ -107,35 +108,38 @@ class DatabaseManager:
 
     def create_account(self, username: str, password: str) -> dict | None:
         """Create a new account"""
+
         username = username.strip()
 
-        with self.get_cursor() as cur:
-            try:
-                # Check if username already exists
-                cur.execute(
-                    "SELECT username FROM users WHERE username = ?", (username,)
-                )
-                if cur.fetchone():
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail="Username already exists",
-                    )
+        cur_usernames_query = "SELECT username FROM users WHERE username = :username"
+        cur_usernames_values = {"username": username}
 
-                # Hash password
-                password_hashed = pwd_context.hash(password)
+        cur_usernames = self.select_query(cur_usernames_query, cur_usernames_values)
 
-                # Create account in database
-                cur.execute(
-                    "INSERT INTO users (username, password_hashed) VALUES (?, ?)",
-                    (username, password_hashed),
-                )
-                cur.connection.commit()
-                return {"status": "account created"}
+        if cur_usernames:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username already exists",
+            )
 
-            except sqlite3.Error as e:
-                cur.connection.rollback()
-                print(f"Error in create_account({username=}, {password=}): \n{e}")
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        password_hashed = pwd_context.hash(password)
+        try:
+            # Create account in database
+            create_account_query = "INSERT INTO users (username, password_hashed, channels) VALUES (:username, :password_hashed, :channels)"
+            create_account_values = {
+                "username": username,
+                "password_hashed": password_hashed,
+                "channels": json.dumps(["welcome"]),
+            }
+
+            self.insert_query(create_account_query, create_account_values)
+
+            return {"status": "account created"}
+        except Exception as e:
+            print(f"Error in create_account({username=}, {password=}): \n{e}")
+            return HTTPException(
+                status_code=500, detail={"status": "Internal server error"}
+            )
 
     def retrieve_existing_accounts(self) -> dict:
         """Retrieve all accounts"""
@@ -157,7 +161,9 @@ class DatabaseManager:
         query = "SELECT channels FROM users WHERE username = :username"
         values = {"username": username}
         channels_raw = self.select_query(query, values)
-        channels_str = channels_raw[0][0] if channels_raw else "[]"
+        print(f"{channels_raw=}")
+        print(f"{channels_raw[0][0]=}")
+        channels_str = channels_raw[0][0] if channels_raw[0][0] else '["welcome"]'
         channels = set(json.loads(channels_str))
         return channels
 
