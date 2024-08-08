@@ -217,8 +217,15 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             message: str = await websocket.receive_text()
             message_dict: dict = json.loads(message)
-            message_dict["sender"] = active_user.username
+            message_dict["username"] = active_user.username
             connection_man.message_store.append(message_dict)
+            # TODO Add graceful error handling for batch inserts / fails
+            # TODO Add timeout or length, whichever comes first
+            if not len(connection_man.message_store) % 5:
+                if db.batch_insert_messages(connection_man.message_store):
+                    connection_man.message_store.clear()
+                else:
+                    pass
             await connection_man.redis_man.enqueue_message(message_dict)
     except WebSocketDisconnect:
         await connection_man.disconnect(active_user.username)

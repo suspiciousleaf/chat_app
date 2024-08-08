@@ -99,6 +99,27 @@ class DatabaseManager:
                 print(f"Error in select_query({query=}, {values=}): \n{e}")
                 return []
 
+    def batch_insert_messages(self, messages: list[dict]):
+        """Insert a batch of messages into the database as a single transaction.
+        'messages' format:
+        [{"username": username: str,
+          "channel": channel: str,
+          "content": content: str},
+          {...}]
+        """
+        with self.get_cursor() as cur:
+            try:
+                batch_insert_query = "INSERT INTO messages (username, channel, content) VALUES (:username, :channel, :content)"
+                cur.executemany(batch_insert_query, messages)
+                cur.connection.commit()
+                return True
+            except Exception as e:
+                cur.connection.rollback()
+                print(
+                    f"Error in batch_insert_messages({batch_insert_query=}, {messages=}): \n{e}"
+                )
+                return None
+
     def retrieve_existing_usernames(self) -> set:
         """Retrieve all account usernames"""
         query = "SELECT username FROM users"
@@ -192,16 +213,16 @@ class DatabaseManager:
                 cur.connection.rollback()
                 print(f"Error in update_query({query=}, {values=}): \n{e}")
 
-    def batch_insert_messages(self, messages: list[dict]):
-        """Insert a batch of messages in one operation"""
-        with self.get_cursor() as cur:
-            try:
-                query = "INSERT INTO messages (username, channel, content) VALUES (:username, :channel, :content)"
-                cur.executemany(query, messages)
-                cur.connection.commit()
-            except Exception as e:
-                cur.connection.rollback()
-                print(f"Error in batch_insert_messages({messages=}): \n{e}")
+    # def batch_insert_messages(self, messages: list[dict]):
+    #     """Insert a batch of messages in one operation"""
+    #     with self.get_cursor() as cur:
+    #         try:
+    #             query = "INSERT INTO messages (username, channel, content) VALUES (:username, :channel, :content)"
+    #             cur.executemany(query, messages)
+    #             cur.connection.commit()
+    #         except Exception as e:
+    #             cur.connection.rollback()
+    #             print(f"Error in batch_insert_messages({messages=}): \n{e}")
 
     def list_tables(self):
         query = "SELECT name FROM sqlite_master WHERE type=:name;"
