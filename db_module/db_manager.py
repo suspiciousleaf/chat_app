@@ -213,17 +213,6 @@ class DatabaseManager:
                 cur.connection.rollback()
                 print(f"Error in update_query({query=}, {values=}): \n{e}")
 
-    # def batch_insert_messages(self, messages: list[dict]):
-    #     """Insert a batch of messages in one operation"""
-    #     with self.get_cursor() as cur:
-    #         try:
-    #             query = "INSERT INTO messages (username, channel, content) VALUES (:username, :channel, :content)"
-    #             cur.executemany(query, messages)
-    #             cur.connection.commit()
-    #         except Exception as e:
-    #             cur.connection.rollback()
-    #             print(f"Error in batch_insert_messages({messages=}): \n{e}")
-
     def list_tables(self):
         query = "SELECT name FROM sqlite_master WHERE type=:name;"
         values = {"name": "table"}
@@ -238,6 +227,31 @@ class DatabaseManager:
         with self.get_connection() as conn:
             database_path = conn.execute("PRAGMA database_list").fetchone()[2]
             return f"Database file path: {database_path}"
+
+    def verify_connection_and_tables(self) -> dict:
+        """Verify if the database connection is working and if the correct tables exist"""
+        required_tables = {"users", "messages"}
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users', 'messages');"
+                )
+                tables = cur.fetchall()
+
+                existing_tables = {table[0] for table in tables}
+
+                missing_tables = required_tables - existing_tables
+
+                if not missing_tables:
+                    return {"status": "ok", "details": None}
+                else:
+                    return {"status": "error", "details": "table format error"}
+
+        except sqlite3.Error:
+            return {"status": "error", "details": "database connection failed"}
+
+        except Exception:
+            return {"status": "error", "details": "unexpected error"}
 
     def close_all(self):
         self._local.conn.close()
