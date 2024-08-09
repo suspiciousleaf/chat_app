@@ -6,7 +6,7 @@ import logging
 import sys
 
 
-SERVER_FILENAME = "server"
+SERVER_FILENAME = "server.main_server"
 
 
 def configure_logging():
@@ -45,7 +45,7 @@ def run():
     # configure_logging()
 
     config = Config(
-        "server:app",
+        f"{SERVER_FILENAME}:app",
         host="127.0.0.1",
         port=8000,
         log_level="warning",

@@ -8,7 +8,7 @@ from json import JSONDecodeError
 import requests
 import time
 
-from networking.connect_websocket import MyWebSocket
+from client.services.client_websocket import MyWebSocket
 
 LARGE_FONT_STYLE = ("Arial", 40, "bold")
 SMALL_FONT_STYLE = ("Arial", 16)
@@ -42,8 +42,9 @@ class Chattr:
         self.username: tk.StringVar = tk.StringVar(value="username")
         self.password: tk.StringVar = tk.StringVar(value="password")
         self.auth_token: dict[str:str] = {}
+        # TODO Disable buttons if server_status isn't correct
         self.server_status = self.check_server_status()
-        self.client_websocket: MyWebSocket | None = None  # MyWebSocket(self.auth_token)
+        self.client_websocket: MyWebSocket | None = None
 
         self.create_startup_screen()
         self.configure_responsive()

@@ -243,15 +243,15 @@ class DatabaseManager:
                 missing_tables = required_tables - existing_tables
 
                 if not missing_tables:
-                    return {"status": "ok", "details": None}
+                    return {"status": True, "details": None}
                 else:
-                    return {"status": "error", "details": "table format error"}
+                    return {"status": False, "details": "table format error"}
 
         except sqlite3.Error:
-            return {"status": "error", "details": "database connection failed"}
+            return {"status": False, "details": "database connection failed"}
 
         except Exception:
-            return {"status": "error", "details": "unexpected error"}
+            return {"status": False, "details": "unexpected error"}
 
     def close_all(self):
         self._local.conn.close()

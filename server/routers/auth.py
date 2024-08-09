@@ -9,7 +9,7 @@ from os import getenv
 import time
 
 # from db_module.db_utilities import retrieve_existing_accounts
-from db_module.db_manager import DatabaseManager
+from server.services.db_module.db_manager import DatabaseManager
 
 
 load_dotenv()
