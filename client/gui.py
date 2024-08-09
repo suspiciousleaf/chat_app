@@ -63,6 +63,7 @@ class Chattr:
         self.delete_all()
         self.create_login_button()
         self.create_signup_button()
+        self.create_server_status_label()
 
     def create_login_button(self):
         """Create the "Login" button"""
@@ -86,8 +87,18 @@ class Chattr:
         self.buttons["signup"] = signup_button
         signup_button.grid(row=1, column=0)
 
+    def create_server_status_label(self):
+        """Create a label bottom left that shows the status of the server"""
+        status_label = ttk.Label(
+            self.window,
+            text=f"Server status: {self.server_status}",
+            font=VERY_SMALL_FONT_STYLE,
+        )
+        status_label.grid(row=2, column=0, sticky="sw", padx=5, pady=5)
+        self.labels["server_status"] = status_label
+
     def create_login_screen(self):
-        # Clear the screen
+        """Clears the screen, then creates the login widgets"""
         self.delete_all()
         self.create_username_entry()
         self.create_password_entry()
@@ -106,6 +117,7 @@ class Chattr:
         self.entries["username_entry"] = username_entry
         username_entry.grid(row=0, column=0)
         username_entry["textvariable"] = self.username
+        # TODO Change or remove this binding
         username_entry.bind("<Key-Return>", self.print_contents)
 
     def create_password_entry(self):
@@ -426,7 +438,6 @@ class Chattr:
         try:
             response = requests.get(f"{URL}/")
             response.raise_for_status()
-            print(f"Server status: {response.json().get('status')}")
             return response.json().get("status")
         except:
             return "unavailable"
