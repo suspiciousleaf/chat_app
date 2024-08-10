@@ -228,7 +228,7 @@ class DatabaseManager:
             database_path = conn.execute("PRAGMA database_list").fetchone()[2]
             return f"Database file path: {database_path}"
 
-    def verify_connection_and_tables(self) -> dict:
+    async def verify_connection_and_tables(self) -> dict:
         """Verify if the database connection is working and if the correct tables exist"""
         required_tables = {"users", "messages"}
         try:
