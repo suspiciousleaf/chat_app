@@ -45,9 +45,9 @@ async def ping():
 
     error_details = []
     if not db_status["status"]:
-        error_details.append(db_status["detail"])
+        error_details.append(db_status["details"])
     if not redis_status["status"]:
-        error_details.append(redis_status["detail"])
+        error_details.append(redis_status["details"])
     return {"status": ", ".join(error_details)}
 
 
