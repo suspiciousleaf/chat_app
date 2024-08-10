@@ -34,30 +34,40 @@ class Chattr:
         self.height: int = 375
         self.window.geometry(f"{self.width}x{self.height}")
         self.window.title("Chattr")
-        self.buttons: dict[str : tk.Button] = {}
-        self.labels: dict[str : tk.Label] = {}
-        self.entries: dict[str : tk.Entry] = {}
+        self.buttons: dict[str, tk.Button] = {}
+        self.labels: dict[str, tk.Label] = {}
+        self.entries: dict[str, tk.Entry] = {}
         self.fields: dict = {}
         self.frame: tk.Frame = self.create_display_frame()
         self.username: tk.StringVar = tk.StringVar(value="username")
         self.password: tk.StringVar = tk.StringVar(value="password")
-        self.auth_token: dict[str:str] = {}
-        # TODO Disable buttons if server_status isn't correct
-        self.server_status = self.check_server_status()
+        self.auth_token: dict[str, str] = {}
         self.client_websocket: MyWebSocket | None = None
+        self.server_status: str = "checking..."
+        self.loop = asyncio.get_event_loop()
+        self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
+        self.thread.start()
 
         self.create_startup_screen()
         self.configure_responsive()
 
-        self.loop = asyncio.get_event_loop()
-        # self.loop.create_task(self.connect_client_websocket())
+        # Buttons are displayed but disabled on startup. Once the server response is received, if everything is working the buttons will be enabled. Otherwise they will remain disabled.
+        self.disable_buttons()
 
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
 
-        # Start the asyncio loop in a separate thread
-        # self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
-        # self.thread.start()
+        self.window.after(100, self.start_server_status_check)
+
+    def disable_buttons(self):
+        """Disable all current buttons"""
+        for button in self.buttons.values():
+            button.config(state="disabled")
+
+    def enable_buttons(self):
+        """Enable all current buttons"""
+        for button in self.buttons.values():
+            button.config(state="normal")
 
     def create_startup_screen(self):
         """Create the initial screen with "Login" and "Sign up" options"""
@@ -166,11 +176,7 @@ class Chattr:
 
     def process_login(self):
         self.client_websocket = MyWebSocket(self.auth_token)
-        # self.loop.create_task(self.connect_client_websocket())
-
-        # Start the asyncio loop in a separate thread
-        self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
-        self.thread.start()
+        asyncio.run_coroutine_threadsafe(self.message_listener_init(), self.loop)
 
     def create_chat(self):
         """Creates the main chat window if login is successfull"""
@@ -292,9 +298,9 @@ class Chattr:
 
     def run_async_loop(self):
         asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.async_init())
+        self.loop.run_forever()
 
-    async def async_init(self):
+    async def message_listener_init(self):
         await self.connect_client_websocket()
         await self.listen_for_messages()
 
@@ -373,21 +379,9 @@ class Chattr:
                 "content": message.strip(),
                 "timestamp": current_time,
             }
-            # self.loop.create_task(self.client_websocket.send_message(formatted_message))
             asyncio.run_coroutine_threadsafe(
                 self.client_websocket.send_message(formatted_message), self.loop
             )
-
-    #! Add code to send messages in the correct format, write function below and trigger here
-    #         # Send message through WebSocket
-    #         asyncio.run_coroutine_threadsafe(self.send_websocket_message(message), self.loop)
-
-    # async def send_websocket_message(self, message):
-    #     try:
-    #         await self.client_websocket.send_message(message)
-    #     except Exception as e:
-    #         print(f"Failed to send message: {e}")
-    #         # Handle the sending failure (e.g., show an error message in the UI)
 
     def create_text_entry(self):
         message_entry = ttk.Entry(
@@ -427,21 +421,33 @@ class Chattr:
 
     def create_display_frame(self) -> tk.Frame:
         """Create the display Frame element"""
-        frame = ttk.Frame(
-            self.window, height=self.height, width=self.width
-        )  # , background="white", foreground="white")
+        frame = ttk.Frame(self.window, height=self.height, width=self.width)
 
         frame.grid(row=0, column=0)
         return frame
 
-    def check_server_status(self):
-        """Ping the server to check if it is running"""
+    async def check_server_status(self):
         try:
-            response = requests.get(f"{URL}/")
+            response = await asyncio.to_thread(requests.get, f"{URL}/", timeout=5)
             response.raise_for_status()
             return response.json().get("status")
         except:
             return "unavailable"
+
+    def start_server_status_check(self):
+        asyncio.run_coroutine_threadsafe(self.update_server_status(), self.loop)
+
+    async def update_server_status(self):
+        self.server_status = await self.check_server_status()
+        self.window.after(0, self.update_server_status_label)
+
+    def update_server_status_label(self):
+        if hasattr(self, "labels") and "server_status" in self.labels:
+            self.labels["server_status"].config(
+                text=f"Server status: {self.server_status}"
+            )
+        if self.server_status == "ready":
+            self.enable_buttons()
 
     def run(self):
         self.window.mainloop()
