@@ -45,8 +45,12 @@ class Chattr:
         self.client_websocket: MyWebSocket | None = None
         self.server_status: str = "checking..."
         self.loop = asyncio.get_event_loop()
+        asyncio.set_event_loop(self.loop)
+        # Daemon threads are stopped abruptly at shutdown. Resources being used may not be released properly
         self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
         self.thread.start()
+        self.is_running = True
+        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.create_startup_screen()
         self.configure_responsive()
@@ -57,7 +61,7 @@ class Chattr:
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
 
-        self.window.after(100, self.start_server_status_check)
+        self.start_server_status_check()
 
     def disable_buttons(self):
         """Disable all current buttons"""
@@ -297,8 +301,12 @@ class Chattr:
         self.delete_entries()
 
     def run_async_loop(self):
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_forever()
+        # asyncio.set_event_loop(self.loop)
+        try:
+            self.loop.run_forever()
+        finally:
+            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            # self.loop.close()
 
     async def message_listener_init(self):
         await self.connect_client_websocket()
@@ -308,14 +316,21 @@ class Chattr:
         await self.client_websocket.connect()
 
     async def listen_for_messages(self):
-        while True:
+        while self.is_running:
             try:
-                message = await self.client_websocket.websocket.recv()
+                message = await asyncio.wait_for(
+                    self.client_websocket.websocket.recv(), timeout=1.0
+                )
                 self.display_message(message)
+            except asyncio.TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                break
             except Exception as e:
                 print(f"Error receiving message: {e}")
-                # Implement reconnection logic here if needed
-                await asyncio.sleep(5)  # Wait before trying to reconnect
+                if not self.is_running:
+                    break
+                await asyncio.sleep(5)
 
     def display_message(self, message):
         message = self.decode_received_message(message)
@@ -449,8 +464,52 @@ class Chattr:
         if self.server_status == "ready":
             self.enable_buttons()
 
+    def on_closing(self):
+        """Handle the closing event of the application."""
+        self.is_running = False
+
+        # Schedule the shutdown coroutine
+        future = asyncio.run_coroutine_threadsafe(self.shutdown(), self.loop)
+
+        # Wait for the shutdown to complete
+        future.result()
+        self.window.destroy()
+
+    async def shutdown(self):
+        """Coroutine to handle the shutdown process."""
+        # Cancel all running tasks
+        tasks = [
+            t for t in asyncio.all_tasks(self.loop) if t is not asyncio.current_task()
+        ]
+        for task in tasks:
+            task.cancel()
+
+        # Wait for all tasks to be cancelled
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Close the websocket connection if it exists
+        if self.client_websocket:
+            await self.client_websocket.close()
+
+        # Stop the loop
+        self.loop.stop()
+
+        # Wait for the loop to actually stop
+        while self.loop.is_running():
+            await asyncio.sleep(0.1)
+
+        self.loop.close()
+
+        # # Shutdown the executor
+        # self.executor.shutdown(wait=True)
+
     def run(self):
-        self.window.mainloop()
+        try:
+            self.window.mainloop()
+        finally:
+            # Ensure shutdown procedure is called even if an exception occurs
+            if self.is_running:
+                self.on_closing()
 
 
 if __name__ == "__main__":
