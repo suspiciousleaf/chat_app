@@ -1,5 +1,6 @@
 import asyncio
 import websockets
+from websockets import WebSocketClientProtocol
 import time
 import json
 
@@ -10,7 +11,7 @@ WEBSOCKET_ENDPOINT = "/ws"
 class MyWebSocket:
     def __init__(self, auth_token: dict):
         self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"
-        self.websocket: websockets = None
+        self.websocket: WebSocketClientProtocol | None = None
         self.auth_token: dict = auth_token
 
     async def connect(self):
@@ -38,13 +39,12 @@ class MyWebSocket:
     async def send_message(self, message: dict):
         await self.websocket.send(json.dumps(message))
 
-    # async def receive_messages(self):
-    #     try:
-    #         while True:
-    #             self.new_message = await self.websocket.recv()
-    #     except websockets.exceptions.ConnectionClosedError as e:
-    #         print(f"WebSocket connection closed with error for {self.username}: {e}")
-    #     except websockets.exceptions.ConnectionClosedOK as e:
-    #         print(f"WebSocket connection closed normally for {self.username}: {e}")
-    #     except asyncio.TimeoutError:
-    #         print(f"Timeout error for {self.username}, trying to reconnect...")
+    async def close(self):
+        """Close the websocket connection if it's open"""
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except Exception as e:
+                print(f"An error occurred while closing the WebSocket: {e}")
+            finally:
+                self.websocket = None
