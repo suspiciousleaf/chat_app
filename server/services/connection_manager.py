@@ -80,7 +80,7 @@ class ConnectionManager:
                             await self.broadcast(data)
                     except json.JSONDecodeError:
                         print(f"Failed to parse message data: {message}")
-                await asyncio.sleep(0.25)
+                await asyncio.sleep(0.1)
 
             except Exception as e:
                 print(f"Error in message listener: {str(e)}")
