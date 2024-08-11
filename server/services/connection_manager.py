@@ -19,18 +19,18 @@ if env_path.exists():
 REDIS_QUEUE = getenv("REDIS_QUEUE")
 MAX_RECONNECT_ATTEMPTS = int(getenv("MAX_RECONNECT_ATTEMPTS"))
 RECONNECT_DELAY = getenv("RECONNECT_DELAY")
+CACHED_MESSAGE_UPLOAD_TIMER = int(getenv("CACHED_MESSAGE_UPLOAD_TIMER"))
 
 
 class ConnectionManager:
     def __init__(self, db: DatabaseManager):
-        # TODO Add function to check length of self.message_store. If more than X messages, or more than Y time, upload messages to database in a batch, reset timer, and clear list.
         self.redis_man = RedisManager()
         self.db = db
         self.listener_task = None
         self.active_connections: dict[str, dict[WebSocket, set]] = {}
         # self.channel_participants:dict = {}
-        self.message_store: list = []
-        self.time_since_message_backup: float = time.time()
+        self.message_cache: list[dict] = []
+        self.time_last_message_backup: int = round(time.time())
 
     async def connect(self, websocket: WebSocket, username: str):
         await websocket.accept()
@@ -58,7 +58,9 @@ class ConnectionManager:
         if not self.active_connections and self.listener_task:
             self.listener_task.cancel()
             self.listener_task = None
-            print("No active connections, stopping listener.")
+            if self.message_cache:
+                await self.upload_cached_messages()
+            print("No active connections, stopping listener. Message cache uploaded")
 
     async def broadcast(self, message: dict):
         channel = message.get("channel")
@@ -72,9 +74,10 @@ class ConnectionManager:
         # If no messages in queue, wait 0.25 seconds and then check again. As long as there are messages in the queue, send them out as fast as possible.
         while True:
             try:
+                await self.cached_messages_watcher()
                 while await self.redis_man.get_len(queue=REDIS_QUEUE) > 0:
                     try:
-                        _, message = await self.redis_man.dequeue_message()
+                        message: str = await self.redis_man.dequeue_message()
                         if message:
                             data = json.loads(message)
                             await self.broadcast(data)
@@ -88,6 +91,9 @@ class ConnectionManager:
 
     async def start_listener(self):
         attempts = 0
+        # Reset message upload timer if no messages in cache. This is to prevent the first message being uploaded in each new session, as the timer will be measuring from the previous session.
+        if not self.message_cache:
+            self.time_last_message_backup = round(time.time())
         while attempts < MAX_RECONNECT_ATTEMPTS:
             try:
                 await self.listen_for_messages()
@@ -99,3 +105,27 @@ class ConnectionManager:
                 print(f"Unexpected error in listener: {str(e)}")
                 break
         print("Max reconnection attempts reached. Listener stopped.")
+
+    async def cached_messages_watcher(self):
+        """Method to take cached messages and batch upload them to the database if conditions are met"""
+        num_messages: int = len(self.message_cache)
+        current_time: int = round(time.time())
+        time_since_last_message_upload: int = (
+            current_time - self.time_last_message_backup
+        )
+        # If the number of stored messages is >= 5, or if there are any messages and the last upload was more than CACHED_MESSAGE_UPLOAD_TIMER seconds ago, do the batch upload immediately
+        if num_messages >= 5 or (
+            time_since_last_message_upload > CACHED_MESSAGE_UPLOAD_TIMER
+            and num_messages
+        ):
+            await self.upload_cached_messages()
+
+    async def upload_cached_messages(self):
+        """Batch inserts all cached messages into database and resets upload timer"""
+        print("Uploading cached messages")
+        if self.db.batch_insert_messages(self.message_cache):
+            self.message_cache.clear()
+            self.time_last_message_backup = round(time.time())
+        else:
+            # TODO log error on failure to avoid losing cached messages
+            pass
