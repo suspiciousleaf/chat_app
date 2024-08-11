@@ -29,6 +29,7 @@ CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
 class Chattr:
     def __init__(self):
+        # Create instance attributes
         self.window: tk.Tk = tk.Tk()
         self.width: int = 375
         self.height: int = 375
@@ -38,30 +39,33 @@ class Chattr:
         self.labels: dict[str, tk.Label] = {}
         self.entries: dict[str, tk.Entry] = {}
         self.fields: dict = {}
-        self.frame: tk.Frame = self.create_display_frame()
         self.username: tk.StringVar = tk.StringVar(value="username")
         self.password: tk.StringVar = tk.StringVar(value="password")
+        self.message_text = tk.StringVar(value="")
+        self.screen_text = tk.StringVar(value="Messages will appear here")
         self.auth_token: dict[str, str] = {}
         self.client_websocket: MyWebSocket | None = None
-        self.server_status: str = "checking..."
-        self.loop = asyncio.get_event_loop()
-        asyncio.set_event_loop(self.loop)
-        # Daemon threads are stopped abruptly at shutdown. Resources being used may not be released properly
+        self.server_status: tk.StringVar = tk.StringVar(value="checking...") #str = "checking..."
+        self.is_running = True
+
+        # Create background async event loop to handle IO operations and move to its own thread
+        self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self.run_async_loop, daemon=True)
         self.thread.start()
-        self.is_running = True
+
+        # Create shutdown protocol that calls the shutdown method on closing
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+        # Greate the GUI
+        self.frame: tk.Frame = self.create_display_frame()
         self.create_startup_screen()
         self.configure_responsive()
 
-        # Buttons are displayed but disabled on startup. Once the server response is received, if everything is working the buttons will be enabled. Otherwise they will remain disabled.
+        # Disable buttons while checking the server status, will be enabled once health check returns positive
         self.disable_buttons()
-
-        self.message_text = tk.StringVar(value="")
-        self.screen_text = tk.StringVar(value="Messages will appear here")
-
         self.start_server_status_check()
+
+
 
     def disable_buttons(self):
         """Disable all current buttons"""
@@ -106,7 +110,7 @@ class Chattr:
         """Create a label bottom left that shows the status of the server"""
         status_label = ttk.Label(
             self.window,
-            text=f"Server status: {self.server_status}",
+            text=f"Server status: {self.server_status.get()}",
             font=VERY_SMALL_FONT_STYLE,
         )
         status_label.grid(row=2, column=0, sticky="sw", padx=5, pady=5)
@@ -301,12 +305,8 @@ class Chattr:
         self.delete_entries()
 
     def run_async_loop(self):
-        # asyncio.set_event_loop(self.loop)
-        try:
-            self.loop.run_forever()
-        finally:
-            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
-            # self.loop.close()
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
 
     async def message_listener_init(self):
         await self.connect_client_websocket()
@@ -453,63 +453,56 @@ class Chattr:
         asyncio.run_coroutine_threadsafe(self.update_server_status(), self.loop)
 
     async def update_server_status(self):
-        self.server_status = await self.check_server_status()
+        self.server_status.set(await self.check_server_status())
         self.window.after(0, self.update_server_status_label)
 
     def update_server_status_label(self):
         if hasattr(self, "labels") and "server_status" in self.labels:
             self.labels["server_status"].config(
-                text=f"Server status: {self.server_status}"
+                text=f"Server status: {self.server_status.get()}"
             )
-        if self.server_status == "ready":
+        if self.server_status.get() == "ready":
             self.enable_buttons()
 
     def on_closing(self):
         """Handle the closing event of the application."""
         self.is_running = False
 
-        # Schedule the shutdown coroutine
-        future = asyncio.run_coroutine_threadsafe(self.shutdown(), self.loop)
+        if self.loop.is_running():
+            self.loop.call_soon_threadsafe(lambda: asyncio.create_task(self.shutdown()))
+        self.window.after(100, self.check_shutdown)
 
-        # Wait for the shutdown to complete
-        future.result()
-        self.window.destroy()
+    def check_shutdown(self):
+        """Check if background loop has closed, once it has close the main window"""
+        if self.thread.is_alive():
+            self.window.after(100, self.check_shutdown)
+        else:
+            self.window.destroy()
 
     async def shutdown(self):
         """Coroutine to handle the shutdown process."""
-        # Cancel all running tasks
+        # Close the websocket connection if it exists
+        if self.client_websocket:
+            await self.client_websocket.close()
+
+        # Gather all tasks in the background event loop (excluding this one), and cancel them
         tasks = [
             t for t in asyncio.all_tasks(self.loop) if t is not asyncio.current_task()
         ]
         for task in tasks:
             task.cancel()
 
-        # Wait for all tasks to be cancelled
+        # Wait for all tasks to be cancelled, then stop the loop
         await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Close the websocket connection if it exists
-        if self.client_websocket:
-            await self.client_websocket.close()
-
-        # Stop the loop
         self.loop.stop()
-
-        # Wait for the loop to actually stop
-        while self.loop.is_running():
-            await asyncio.sleep(0.1)
-
-        self.loop.close()
-
-        # # Shutdown the executor
-        # self.executor.shutdown(wait=True)
 
     def run(self):
         try:
             self.window.mainloop()
         finally:
-            # Ensure shutdown procedure is called even if an exception occurs
             if self.is_running:
                 self.on_closing()
+            self.thread.join()
 
 
 if __name__ == "__main__":
