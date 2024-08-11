@@ -23,7 +23,8 @@ class RedisManager:
         # await self.redis.rpush(REDIS_QUEUE, message)
 
     async def dequeue_message(self) -> str:
-        return await asyncio.to_thread(self.redis.blpop, REDIS_QUEUE, timeout=0)
+        _, message = await asyncio.to_thread(self.redis.blpop, REDIS_QUEUE, timeout=0)
+        return message
         # return await self.redis.blpop(REDIS_QUEUE, message)
 
     async def get_len(self, queue: str) -> int:
