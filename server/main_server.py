@@ -111,15 +111,8 @@ async def websocket_endpoint(websocket: WebSocket):
             message_dict["sent_at"]: str = db.adapt_datetime_iso(
                 datetime.datetime.now(datetime.timezone.utc)
             )
-            connection_man.message_store.append(message_dict)
+            connection_man.message_cache.append(message_dict)
             # TODO Add graceful error handling for batch inserts / fails
-            # TODO Add timeout or length, whichever comes first
-            num_messages = len(connection_man.message_store)
-            if num_messages and not num_messages % 5:
-                if db.batch_insert_messages(connection_man.message_store):
-                    connection_man.message_store.clear()
-                else:
-                    pass
             await connection_man.redis_man.enqueue_message(message_dict)
     except WebSocketDisconnect:
         await connection_man.disconnect(active_user.username)
