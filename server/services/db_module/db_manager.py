@@ -6,6 +6,7 @@ import sqlite3
 import json
 from threading import local
 from contextlib import contextmanager
+import datetime
 
 load_dotenv()
 
@@ -67,7 +68,7 @@ class DatabaseManager:
             username TEXT,
             channel TEXT,
             content TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            sent_at TEXT,
             FOREIGN KEY (username) REFERENCES users(username)
         );"""
 
@@ -105,11 +106,12 @@ class DatabaseManager:
         [{"username": username: str,
           "channel": channel: str,
           "content": content: str},
+          "sent_at": sent_at: str
           {...}]
         """
         with self.get_cursor() as cur:
             try:
-                batch_insert_query = "INSERT INTO messages (username, channel, content) VALUES (:username, :channel, :content)"
+                batch_insert_query = "INSERT INTO messages (username, channel, content, sent_at) VALUES (:username, :channel, :content, :sent_at)"
                 cur.executemany(batch_insert_query, messages)
                 cur.connection.commit()
                 return True
@@ -255,6 +257,16 @@ class DatabaseManager:
 
     def close_all(self):
         self._local.conn.close()
+
+    @staticmethod
+    def adapt_datetime_iso(val: datetime.datetime) -> str:
+        """Adapt datetime.datetime to UTC ISO 8601 string."""
+        return val.astimezone(datetime.timezone.utc).isoformat()
+
+    @staticmethod
+    def convert_datetime(val: str) -> datetime.datetime:
+        """Convert ISO 8601 string to datetime.datetime object."""
+        return datetime.datetime.fromisoformat(val.decode())
 
 
 # # Usage
