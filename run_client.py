@@ -16,7 +16,6 @@ if __name__ == "__main__":
 #! Server
 # TODO Add timeout for batch message inserts
 # TODO Check ws login event loop thread logic and behaviour
-# TODO Add message timestamp
 # TODO Add ability for people to update their channel subscriptions via endpoint
 # TODO Auth is using its own instance of db_manager, refactor to pass through the main instance
 # TODO check disconnect logic
