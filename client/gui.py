@@ -1,6 +1,6 @@
 import datetime
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, Event
 import asyncio
 import threading
 import json
@@ -26,26 +26,40 @@ URL = "http://127.0.0.1:8000"
 LOGIN_ENDPOINT = "/auth/token"
 CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
+WINDOW_WIDTH = 375
+WINDOW_HEIGHT = 300
+CHANNEL_WIDTH = 75
+
 
 class Chattr:
     def __init__(self):
         # Create instance attributes
         self.window: tk.Tk = tk.Tk()
-        self.width: int = 375
-        self.height: int = 375
+        self.width: int = WINDOW_WIDTH
+        self.height: int = WINDOW_HEIGHT
+        self.channel_width = CHANNEL_WIDTH
         self.window.geometry(f"{self.width}x{self.height}")
+        self.window.minsize(self.channel_width + 300, 300)
         self.window.title("Chattr")
         self.buttons: dict[str, tk.Button] = {}
         self.labels: dict[str, tk.Label] = {}
         self.entries: dict[str, tk.Entry] = {}
         self.fields: dict = {}
+        self.frames: dict[str, ttk.Frame] = {}
+
+        style = ttk.Style()
+        style.configure("Login.TFrame", background="light red")
+        style.configure("Channel.TFrame", background="light blue")
+        style.configure("Chat.TFrame", background="light green")
+
+        # Session attributes
         self.username: tk.StringVar = tk.StringVar(value="username")
         self.password: tk.StringVar = tk.StringVar(value="password")
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
         self.auth_token: dict[str, str] = {}
         self.client_websocket: MyWebSocket | None = None
-        self.server_status: tk.StringVar = tk.StringVar(value="checking...") #str = "checking..."
+        self.server_status: tk.StringVar = tk.StringVar(value="checking...")
         self.is_running = True
 
         # Create background async event loop to handle IO operations and move to its own thread
@@ -56,16 +70,12 @@ class Chattr:
         # Create shutdown protocol that calls the shutdown method on closing
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        # Greate the GUI
-        self.frame: tk.Frame = self.create_display_frame()
+        # Create the GUI
         self.create_startup_screen()
-        self.configure_responsive()
 
         # Disable buttons while checking the server status, will be enabled once health check returns positive
         self.disable_buttons()
         self.start_server_status_check()
-
-
 
     def disable_buttons(self):
         """Disable all current buttons"""
@@ -80,16 +90,18 @@ class Chattr:
     def create_startup_screen(self):
         """Create the initial screen with "Login" and "Sign up" options"""
         self.delete_all()
+        self.create_login_frame()
         self.create_login_button()
         self.create_signup_button()
         self.create_server_status_label()
+        self.configure_login_responsive()
 
     def create_login_button(self):
         """Create the "Login" button"""
         self.username.set("username_1")
         self.password.set("password_1")
         login_button = ttk.Button(
-            self.frame,
+            self.frames["login"],
             text="Log in",
             command=lambda: self.create_login_screen(),
         )
@@ -99,7 +111,7 @@ class Chattr:
     def create_signup_button(self):
         """Create the "Sign up" button"""
         signup_button = ttk.Button(
-            self.frame,
+            self.frames["login"],
             text="Create account",
             command=lambda: self.create_signup_screen(),
         )
@@ -113,12 +125,12 @@ class Chattr:
             text=f"Server status: {self.server_status.get()}",
             font=VERY_SMALL_FONT_STYLE,
         )
-        status_label.grid(row=2, column=0, sticky="sw", padx=5, pady=5)
+        status_label.grid(row=0, column=0, sticky="sw", padx=5, pady=5)
         self.labels["server_status"] = status_label
 
     def create_login_screen(self):
         """Clears the screen, then creates the login widgets"""
-        self.delete_all()
+        self.delete_widgets()
         self.create_username_entry()
         self.create_password_entry()
         self.create_login_submit_button()
@@ -127,7 +139,7 @@ class Chattr:
     def create_username_entry(self):
         """Create 'username' entry widget"""
         username_entry = ttk.Entry(
-            self.frame,
+            self.frames["login"],
             background=WHITE,
             foreground=LABEL_COLOUR,
             font=SMALL_FONT_STYLE,
@@ -142,7 +154,7 @@ class Chattr:
     def create_password_entry(self):
         """Create 'password' entry widget"""
         password_entry = ttk.Entry(
-            self.frame,
+            self.frames["login"],
             background=WHITE,
             foreground=LABEL_COLOUR,
             font=SMALL_FONT_STYLE,
@@ -157,7 +169,7 @@ class Chattr:
     def create_login_submit_button(self):
         """Create login 'submit' button"""
         login_button = ttk.Button(
-            self.frame,
+            self.frames["login"],
             text="Log in",
             command=lambda: self.submit_login(),
         )
@@ -167,7 +179,7 @@ class Chattr:
     def create_back_button(self):
         """Create 'back' button"""
         back_button = ttk.Button(
-            self.frame,
+            self.frames["login"],
             text="Back",
             command=lambda: self.create_startup_screen(),
         )
@@ -178,7 +190,6 @@ class Chattr:
         self.auth_token = self.get_auth_token()
         # This will create the chat screen if login is successfull
         if self.auth_token:
-            self.delete_all()
             self.process_login()
             self.create_chat()
 
@@ -186,13 +197,41 @@ class Chattr:
         self.client_websocket = MyWebSocket(self.auth_token)
         asyncio.run_coroutine_threadsafe(self.message_listener_init(), self.loop)
 
+    def process_logout(self):
+        # TODO Log in screen shifts left when this is called
+        self.create_startup_screen()
+
     def create_chat(self):
         """Creates the main chat window if login is successfull"""
 
+        self.delete_all()
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
+        self.create_container_frame()
+        self.create_channel_frame()
+        self.create_chat_frame()
         self.create_text_field()
         self.create_text_entry()
+        self.create_channel_placeholder()
+        self.create_logout_button()
+        self.configure_chat_responsive()
+
+    def create_logout_button(self):
+        logout_button = ttk.Button(
+            self.frames["channel"],
+            text="Log out",
+            width=10,
+            command=self.process_logout,
+        )
+        logout_button.grid(row=1, column=0, sticky="sew")
+        self.buttons["logout"] = logout_button
+
+    def create_channel_placeholder(self):
+        channel_label = ttk.Label(
+            self.frames["channel"], text="Channels", wraplength=self.channel_width - 10
+        )
+        channel_label.grid(row=0, column=0, sticky="n")
+        self.labels["channel_placeholder"] = channel_label
 
     def get_auth_token(self) -> dict | None:
         """Submits username and password to get a bearer token from the server"""
@@ -210,7 +249,7 @@ class Chattr:
 
     def create_signup_screen(self):
         """Create the sign up screen with input elements and buttons, called by clicking the "Sign up" button"""
-        self.delete_all()
+        self.delete_widgets()
 
         # Clear the screen
         self.create_signup_info_label()
@@ -221,7 +260,7 @@ class Chattr:
 
     def create_signup_info_label(self):
         signup_info_label = ttk.Label(
-            self.frame,
+            self.frames["login"],
             text="Enter username and password",
             font=VERY_SMALL_FONT_STYLE,
         )
@@ -231,7 +270,7 @@ class Chattr:
     def create_signup_submit_button(self):
         """Create signup 'submit' button"""
         signup_button = ttk.Button(
-            self.frame,
+            self.frames["login"],
             text="Submit",
             command=lambda: self.submit_signup(),
         )
@@ -255,7 +294,7 @@ class Chattr:
                 self.labels["signup_info"].config(
                     text="Account created successfully,\nLogging in now..."
                 )
-                self.frame.after(2500, self.submit_login)
+                self.frames["login"].after(2500, self.submit_login)
 
             elif response.status_code == 409:
                 self.labels["signup_info"].config(text="Username already exists")
@@ -275,7 +314,7 @@ class Chattr:
 
                 except:
                     self.labels["signup_info"].config(text="Account creation failed")
-                    self.frame.after(2500, self.create_startup_screen)
+                    self.frames["login"].after(2500, self.create_startup_screen)
 
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {e}")
@@ -298,7 +337,7 @@ class Chattr:
             self.labels[label].grid_forget()
         self.labels.clear()
 
-    def delete_all(self):
+    def delete_widgets(self):
         """Delete all elements on the screen, excluding Frame"""
         self.delete_labels()
         self.delete_buttons()
@@ -354,20 +393,39 @@ class Chattr:
             print(f"Unknown error occurred when decoding message: {e}")
 
     def create_text_field(self):
-        text_field = tk.Text(
-            self.window,
-            width=self.width,
-            state="disabled",
-            wrap="word",
-        )
+        # text_field = tk.Text(
+        #     self.frames["chat"],
+        #     width=self.width,
+        #     state="disabled",
+        #     wrap="word",
+        # )
+        text_field = tk.Text(self.frames["chat"], wrap="word", state="disabled")
         text_field.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self.fields["text"] = text_field
 
-    def configure_responsive(self):
-        # Configure grid row and column weights for responsive behaviour
-        self.window.rowconfigure(0, weight=1)
-        self.window.columnconfigure(0, weight=1)
-        self.window.columnconfigure(1, weight=0)
+    def configure_login_responsive(self):
+        # Configure grid row and column weights for login responsive behaviour
+        self.window.grid_rowconfigure(0, weight=1)
+        self.window.grid_columnconfigure(0, weight=1)
+        self.frames["login"].grid_rowconfigure(0, weight=1)
+        self.frames["login"].grid_columnconfigure(0, weight=1)
+        self.frames["login"].grid_columnconfigure(1, weight=0)
+
+    def configure_chat_responsive(self):
+        # Configure grid row and column weights for chat responsive behaviour
+        self.window.grid_rowconfigure(0, weight=1)
+        # self.window.grid_columnconfigure(0, weight=1)
+        self.window.grid_columnconfigure(1, weight=1)
+
+        self.frames["container"].grid_rowconfigure(0, weight=1)
+        self.frames["container"].grid_columnconfigure(1, weight=1)
+
+        self.frames["chat"].grid_rowconfigure(0, weight=1)
+        self.frames["chat"].grid_columnconfigure(0, weight=1)
+
+        self.frames["channel"].grid_rowconfigure(0, weight=1)
+        self.frames["channel"].grid_rowconfigure(1, weight=0)
+        # self.frames["channel"].grid_columnconfigure(0, weight=0)
 
     # Format for message:
     # {
@@ -399,18 +457,21 @@ class Chattr:
             )
 
     def create_text_entry(self):
-        message_entry = ttk.Entry(
-            self.window, width=self.width - 70, background=OFF_WHITE
-        )
+        message_entry = ttk.Entry(self.frames["chat"], background=OFF_WHITE)
         message_entry.grid(row=1, column=0, sticky="ew")
         message_entry.bind("<Return>", self.send_message)
         self.entries["write_message"] = message_entry
 
-        send_button = ttk.Button(self.window, text="Send", command=self.send_message)
+        send_button = ttk.Button(
+            self.frames["chat"], text="Send", command=self.send_message
+        )
         send_button.grid(row=1, column=1)
         self.buttons["send"] = send_button
 
-    def print_contents(self, event):
+        self.frames["chat"].grid_columnconfigure(0, weight=1)
+        self.frames["chat"].grid_columnconfigure(1, weight=0)
+
+    def print_contents(self, event: Event):
         entry_widget = event.widget
         print("Hi. The current entry content is:", entry_widget.get())
 
@@ -429,17 +490,49 @@ class Chattr:
             self.labels[label].grid_forget()
         self.labels.clear()
 
-    def delete_all(self):
+    def delete_frames(self):
+        for frame in self.frames:
+            self.frames[frame].destroy()
+        self.frames.clear()
+
+    def delete_widgets(self):
         self.delete_labels()
         self.delete_buttons()
         self.delete_entries()
 
-    def create_display_frame(self) -> tk.Frame:
-        """Create the display Frame element"""
-        frame = ttk.Frame(self.window, height=self.height, width=self.width)
+    def delete_all(self):
+        self.delete_widgets()
+        self.delete_frames()
 
+    def create_login_frame(self):
+        """Create the login Frame element"""
+        frame = ttk.Frame(self.window, height=self.height, width=self.width)
         frame.grid(row=0, column=0)
-        return frame
+        frame["style"] = "Login.TFrame"
+        self.frames["login"] = frame
+
+    def create_container_frame(self):
+        container_frame = ttk.Frame(self.window)
+        container_frame.grid(row=0, column=0, sticky="nsew")
+        self.frames["container"] = container_frame
+
+    def create_chat_frame(self):
+        """Create the chat Frame element"""
+        frame = ttk.Frame(self.frames["container"])
+        frame.grid(row=0, column=1, sticky="nsew")
+        frame["style"] = "Chat.TFrame"
+        self.frames["chat"] = frame
+
+    def create_channel_frame(self):
+        """Create the channel Frame element"""
+        frame = ttk.Frame(
+            self.frames["container"],
+            width=self.channel_width,
+        )
+        frame.grid(row=0, column=0, sticky="ns")
+        frame.grid_propagate(False)
+        frame["style"] = "Channel.TFrame"
+        self.frames["channel"] = frame
 
     async def check_server_status(self):
         try:
