@@ -5,9 +5,11 @@ if __name__ == "__main__":
     chattr.run()
 
 #! Client
-# TODO Make logout button
+# TODO Make channel selection list
 # TODO Filter messages by channel
+# TODO Store channel messages in a dict
 # TODO Make buttons remain still between screens during login
+# TODO Log in screen shifts left when log out button is pressed
 
 #! Auth
 # TODO Verify token expiry is working as expected
