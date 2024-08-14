@@ -184,9 +184,7 @@ class DatabaseManager:
         query = "SELECT channels FROM users WHERE username = :username"
         values = {"username": username}
         channels_raw = self.select_query(query, values)
-        print(f"{channels_raw=}")
-        print(f"{channels_raw[0][0]=}")
-        channels_str = channels_raw[0][0] if channels_raw[0][0] else '["welcome"]'
+        channels_str: str = channels_raw[0][0] if channels_raw[0][0] else '["welcome"]'
         channels = set(json.loads(channels_str))
         return channels
 
