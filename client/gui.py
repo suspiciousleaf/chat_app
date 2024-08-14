@@ -30,6 +30,26 @@ WINDOW_WIDTH = 375
 WINDOW_HEIGHT = 300
 CHANNEL_WIDTH = 75
 
+# Format for text message as received:
+# {
+#   "channel": "username_1",
+#   "sender": "user123",
+#   "content": "Hello, world!",
+#   "sent_at": "2023-07-25T12:34:56Z"
+# }
+
+# Format for text message as sent:
+# {
+#   "channel": "welcome",
+#   "content": "Hello, world!",
+# }
+
+# Format for info message as received:
+# {
+#   "event": "channel_subscriptions",
+#   "data": ["welcome", "hello",...]
+# }
+
 
 class Chattr:
     def __init__(self):
@@ -473,20 +493,6 @@ class Chattr:
 
     def configure_chat_responsive(self):
         """Configure grid row and column weights for chat responsive behaviour"""
-        # self.window.grid_rowconfigure(0, weight=1)
-        # # self.window.grid_columnconfigure(0, weight=1)
-        # self.window.grid_columnconfigure(1, weight=1)
-
-        # self.frames["container"].grid_rowconfigure(0, weight=1)
-        # self.frames["container"].grid_columnconfigure(1, weight=1)
-
-        # self.frames["chat"].grid_rowconfigure(0, weight=1)
-        # self.frames["chat"].grid_columnconfigure(0, weight=1)
-
-        # self.frames["channel"].grid_rowconfigure(0, weight=1)
-        # self.frames["channel"].grid_rowconfigure(1, weight=0)
-        # # self.frames["channel"].grid_columnconfigure(0, weight=0)
-        # ? Change for notebook
         self.window.grid_rowconfigure(0, weight=1)
         self.window.grid_columnconfigure(0, weight=1)
 
@@ -499,30 +505,15 @@ class Chattr:
 
         self.frames["bottom"].grid_columnconfigure(1, weight=1)
 
-    # Format for message:
-    # {
-    #   "channel": "username_1",
-    #   "sender": "user123",
-    #   "content": "Hello, world!",
-    #   "timestamp": "2023-07-25T12:34:56Z"
-    # }
-
     def send_message(self, event=None):
         message = self.entries["write_message"].get()
         if message.strip():  # Check if the message is not empty
-            # self.fields["text"].config(state="normal")
-            # current_time = datetime.datetime.now().strftime("%H:%M")
-            # self.fields["text"].insert(tk.END, f"{current_time} You: {message}\n")
-            # self.fields["text"].config(state="disabled")
-            # self.fields["text"].yview(tk.END)  # Auto-scroll to the bottom
             self.entries["write_message"].delete(0, tk.END)
             # Message formatted as json to send to server
             formatted_message: dict = {
-                # TODO change channel hardcoding to dynamic once implemented
                 # Username is added in the server from the bearer token to ensure accuracy
                 "channel": self.active_channel,
                 "content": message.strip(),
-                # "timestamp": current_time,
             }
             asyncio.run_coroutine_threadsafe(
                 self.client_websocket.send_message(formatted_message), self.loop
