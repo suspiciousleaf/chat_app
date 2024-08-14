@@ -47,6 +47,10 @@ class Chattr:
         self.fields: dict = {}
         self.frames: dict[str, ttk.Frame] = {}
 
+        self.nb: ttk.Notebook | None = None
+        self.nb_tabs: dict = {}
+        self.active_channel: str | None = None
+
         style = ttk.Style()
         style.configure("Login.TFrame", background="light red")
         style.configure("Channel.TFrame", background="light blue")
@@ -55,6 +59,7 @@ class Chattr:
         # Session attributes
         self.username: tk.StringVar = tk.StringVar(value="username")
         self.password: tk.StringVar = tk.StringVar(value="password")
+        self.channels: list | None = None
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
         self.auth_token: dict[str, str] = {}
@@ -208,30 +213,39 @@ class Chattr:
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
         self.create_container_frame()
-        self.create_channel_frame()
         self.create_chat_frame()
+        self.create_bottom_frame()
         self.create_text_field()
         self.create_text_entry()
-        self.create_channel_placeholder()
         self.create_logout_button()
+        self.create_send_button()
         self.configure_chat_responsive()
 
     def create_logout_button(self):
         logout_button = ttk.Button(
-            self.frames["channel"],
+            self.frames["bottom"],
             text="Log out",
             width=10,
             command=self.process_logout,
         )
-        logout_button.grid(row=1, column=0, sticky="sew")
+        logout_button.grid(row=0, column=0, sticky="sw", padx=2, pady=2)
         self.buttons["logout"] = logout_button
 
-    def create_channel_placeholder(self):
-        channel_label = ttk.Label(
-            self.frames["channel"], text="Channels", wraplength=self.channel_width - 10
+    def create_send_button(self):
+        send_button = ttk.Button(
+            self.frames["bottom"], text="Send", command=self.send_message
         )
-        channel_label.grid(row=0, column=0, sticky="n")
-        self.labels["channel_placeholder"] = channel_label
+        send_button.grid(
+            row=0, column=2, sticky="es", padx=2, pady=2
+        )  # padx=(0, 5), pady=5)
+        self.buttons["send"] = send_button
+
+    # def create_channel_placeholder(self):
+    #     channel_label = ttk.Label(
+    #         self.frames["channel"], text="Channels", wraplength=self.channel_width - 10
+    #     )
+    #     channel_label.grid(row=0, column=0, sticky="n")
+    #     self.labels["channel_placeholder"] = channel_label
 
     def get_auth_token(self) -> dict | None:
         """Submits username and password to get a bearer token from the server"""
@@ -357,10 +371,17 @@ class Chattr:
     async def listen_for_messages(self):
         while self.is_running:
             try:
-                message = await asyncio.wait_for(
+                message_str = await asyncio.wait_for(
                     self.client_websocket.websocket.recv(), timeout=1.0
                 )
-                self.display_message(message)
+                message: dict = self.decode_received_message(message_str)
+                if message is not None:
+                    ## "messages" can contain event information such as channel subscriptions, or message data. This filters based on keys present.
+                    if message.get("event") == "channel_subscriptions":
+                        self.channels = message.get("data")
+                        self.build_channel_tabs()
+                    else:
+                        self.process_received_message(message)
             except asyncio.TimeoutError:
                 continue
             except asyncio.CancelledError:
@@ -371,20 +392,25 @@ class Chattr:
                     break
                 await asyncio.sleep(5)
 
-    def display_message(self, message):
-        message = self.decode_received_message(message)
-        current_time = datetime.datetime.now().strftime("%H:%M")
-        display_text = f"{current_time} Channel: {message['channel']}, Message: {message['content']}\n"
+    def process_received_message(self, message: dict):
+        """Format the received message and send it to the method to update the display"""
+        # Generate a string showing the message sent timestamp in HH:MM format for the local timezone of the client
+        message_timestamp = (
+            datetime.datetime.fromisoformat(message["sent_at"])
+            .astimezone()
+            .strftime("%H:%M")
+        )
+        display_text = f"{message_timestamp}: {message['content']}\n"
         # Use after() method to safely update GUI from a different thread
-        self.window.after(0, self.update_text_field, display_text)
+        self.window.after(0, self.update_text_field, message["channel"], display_text)
 
-    def update_text_field(self, text):
-        self.fields["text"].config(state="normal")
-        self.fields["text"].insert(tk.END, text)
-        self.fields["text"].config(state="disabled")
-        self.fields["text"].yview(tk.END)  # Auto-scroll to the bottom
+    def update_text_field(self, channel: str, text: str):
+        self.nb_tabs[channel].config(state="normal")
+        self.nb_tabs[channel].insert(tk.END, text)
+        self.nb_tabs[channel].config(state="disabled")
+        self.nb_tabs[channel].yview(tk.END)  # Auto-scroll to the bottom
 
-    def decode_received_message(self, message):
+    def decode_received_message(self, message: str) -> dict:
         try:
             return json.loads(message)
         except JSONDecodeError:
@@ -393,15 +419,49 @@ class Chattr:
             print(f"Unknown error occurred when decoding message: {e}")
 
     def create_text_field(self):
-        # text_field = tk.Text(
-        #     self.frames["chat"],
-        #     width=self.width,
-        #     state="disabled",
-        #     wrap="word",
-        # )
-        text_field = tk.Text(self.frames["chat"], wrap="word", state="disabled")
-        text_field.grid(row=0, column=0, columnspan=2, sticky="nsew")
-        self.fields["text"] = text_field
+        # text_field = tk.Text(self.frames["chat"], wrap="word", state="disabled")
+        # text_field.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        # self.fields["text"] = text_field
+
+        self.style = ttk.Style()
+        self.style.configure(
+            "lefttab.TNotebook", tabposition=tk.W + tk.N, tabplacement=tk.N + tk.EW
+        )
+        current_theme = self.style.theme_use()
+        self.style.theme_settings(
+            current_theme,
+            {
+                "TNotebook.Tab": {
+                    "configure": {"background": "white", "padding": [4, 4]}
+                }
+            },
+        )
+        self.nb = ttk.Notebook(self.frames["chat"], style="lefttab.TNotebook")
+        self.nb.grid(row=0, column=0, sticky="nsew")
+        self.style.configure("TFrame", background="white")
+        # Each time the active tab is changed, this virtual event will update self.active_channel
+        self.nb.bind("<<NotebookTabChanged>>", self.set_active_channel)
+
+    def set_active_channel(self, event=None):
+        self.active_channel = self.channels[self.nb.index(self.nb.select())]
+
+    def build_channel_tabs(self):
+        if self.channels:
+            for channel_name in self.channels:
+                # self.nb_tabs[channel_name] = ttk.Frame(self.nb, width=500, height=300)
+                text_field = tk.Text(self.nb, wrap="word", state="disabled")
+                text_field.grid(row=0, column=0, sticky="nsew")
+                self.nb_tabs[channel_name] = text_field
+                self.nb.add(
+                    self.nb_tabs[channel_name], text=channel_name[:10], sticky="nsew"
+                )
+
+        # self.page0 = ttk.Frame(self.nb, width=500, height=300)
+        # self.page1 = ttk.Frame(self.nb, width=500, height=300)
+        # self.page2 = ttk.Frame(self.nb, width=500, height=300)
+
+        # self.nb.add(self.page1, text="Page 2", sticky="nsew")
+        # self.nb.add(self.page2, text="Page 3", sticky="nsew")
 
     def configure_login_responsive(self):
         # Configure grid row and column weights for login responsive behaviour
@@ -412,20 +472,32 @@ class Chattr:
         self.frames["login"].grid_columnconfigure(1, weight=0)
 
     def configure_chat_responsive(self):
-        # Configure grid row and column weights for chat responsive behaviour
+        """Configure grid row and column weights for chat responsive behaviour"""
+        # self.window.grid_rowconfigure(0, weight=1)
+        # # self.window.grid_columnconfigure(0, weight=1)
+        # self.window.grid_columnconfigure(1, weight=1)
+
+        # self.frames["container"].grid_rowconfigure(0, weight=1)
+        # self.frames["container"].grid_columnconfigure(1, weight=1)
+
+        # self.frames["chat"].grid_rowconfigure(0, weight=1)
+        # self.frames["chat"].grid_columnconfigure(0, weight=1)
+
+        # self.frames["channel"].grid_rowconfigure(0, weight=1)
+        # self.frames["channel"].grid_rowconfigure(1, weight=0)
+        # # self.frames["channel"].grid_columnconfigure(0, weight=0)
+        # ? Change for notebook
         self.window.grid_rowconfigure(0, weight=1)
-        # self.window.grid_columnconfigure(0, weight=1)
-        self.window.grid_columnconfigure(1, weight=1)
+        self.window.grid_columnconfigure(0, weight=1)
 
         self.frames["container"].grid_rowconfigure(0, weight=1)
-        self.frames["container"].grid_columnconfigure(1, weight=1)
+        self.frames["container"].grid_rowconfigure(1, weight=0)
+        self.frames["container"].grid_columnconfigure(0, weight=1)
 
         self.frames["chat"].grid_rowconfigure(0, weight=1)
         self.frames["chat"].grid_columnconfigure(0, weight=1)
 
-        self.frames["channel"].grid_rowconfigure(0, weight=1)
-        self.frames["channel"].grid_rowconfigure(1, weight=0)
-        # self.frames["channel"].grid_columnconfigure(0, weight=0)
+        self.frames["bottom"].grid_columnconfigure(1, weight=1)
 
     # Format for message:
     # {
@@ -438,35 +510,30 @@ class Chattr:
     def send_message(self, event=None):
         message = self.entries["write_message"].get()
         if message.strip():  # Check if the message is not empty
-            self.fields["text"].config(state="normal")
-            current_time = datetime.datetime.now().strftime("%H:%M")
-            self.fields["text"].insert(tk.END, f"{current_time} You: {message}\n")
-            self.fields["text"].config(state="disabled")
-            self.fields["text"].yview(tk.END)  # Auto-scroll to the bottom
+            # self.fields["text"].config(state="normal")
+            # current_time = datetime.datetime.now().strftime("%H:%M")
+            # self.fields["text"].insert(tk.END, f"{current_time} You: {message}\n")
+            # self.fields["text"].config(state="disabled")
+            # self.fields["text"].yview(tk.END)  # Auto-scroll to the bottom
             self.entries["write_message"].delete(0, tk.END)
             # Message formatted as json to send to server
             formatted_message: dict = {
                 # TODO change channel hardcoding to dynamic once implemented
                 # Username is added in the server from the bearer token to ensure accuracy
-                "channel": "welcome",
+                "channel": self.active_channel,
                 "content": message.strip(),
-                "timestamp": current_time,
+                # "timestamp": current_time,
             }
             asyncio.run_coroutine_threadsafe(
                 self.client_websocket.send_message(formatted_message), self.loop
             )
 
     def create_text_entry(self):
-        message_entry = ttk.Entry(self.frames["chat"], background=OFF_WHITE)
-        message_entry.grid(row=1, column=0, sticky="ew")
+        """Create the text entry widget to write and send messages"""
+        message_entry = ttk.Entry(self.frames["bottom"], background=OFF_WHITE)
+        message_entry.grid(row=0, column=1, sticky="nsew", padx=1, pady=2)
         message_entry.bind("<Return>", self.send_message)
         self.entries["write_message"] = message_entry
-
-        send_button = ttk.Button(
-            self.frames["chat"], text="Send", command=self.send_message
-        )
-        send_button.grid(row=1, column=1)
-        self.buttons["send"] = send_button
 
         self.frames["chat"].grid_columnconfigure(0, weight=1)
         self.frames["chat"].grid_columnconfigure(1, weight=0)
@@ -476,31 +543,37 @@ class Chattr:
         print("Hi. The current entry content is:", entry_widget.get())
 
     def delete_buttons(self):
+        """Delete all buttons"""
         for button in self.buttons:
             self.buttons[button].grid_forget()
         self.buttons.clear()
 
     def delete_entries(self):
+        """Delete all entries"""
         for entry in self.entries:
             self.entries[entry].grid_forget()
         self.entries.clear()
 
     def delete_labels(self):
+        """Delete all labels"""
         for label in self.labels:
             self.labels[label].grid_forget()
         self.labels.clear()
 
     def delete_frames(self):
+        """Delete all frames"""
         for frame in self.frames:
             self.frames[frame].destroy()
         self.frames.clear()
 
     def delete_widgets(self):
+        """Delete all widgets"""
         self.delete_labels()
         self.delete_buttons()
         self.delete_entries()
 
     def delete_all(self):
+        """Delete everything on the GUI"""
         self.delete_widgets()
         self.delete_frames()
 
@@ -519,20 +592,18 @@ class Chattr:
     def create_chat_frame(self):
         """Create the chat Frame element"""
         frame = ttk.Frame(self.frames["container"])
-        frame.grid(row=0, column=1, sticky="nsew")
+        # frame.grid(row=0, column=1, sticky="nsew")
+        frame.grid(row=0, column=0, sticky="nsew")
         frame["style"] = "Chat.TFrame"
         self.frames["chat"] = frame
 
-    def create_channel_frame(self):
-        """Create the channel Frame element"""
-        frame = ttk.Frame(
-            self.frames["container"],
-            width=self.channel_width,
-        )
-        frame.grid(row=0, column=0, sticky="ns")
+    def create_bottom_frame(self):
+        """Create the bottom Frame element"""
+        frame = ttk.Frame(self.frames["container"], height=30)  # Fixed height
+        frame.grid(row=1, column=0, sticky="ew")
         frame.grid_propagate(False)
-        frame["style"] = "Channel.TFrame"
-        self.frames["channel"] = frame
+        frame["style"] = "Bottom.TFrame"
+        self.frames["bottom"] = frame
 
     async def check_server_status(self):
         try:
