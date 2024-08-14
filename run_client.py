@@ -5,11 +5,9 @@ if __name__ == "__main__":
     chattr.run()
 
 #! Client
-# TODO Make channel selection list
-# TODO Filter messages by channel
-# TODO Store channel messages in a dict
 # TODO Make buttons remain still between screens during login
-# TODO Log in screen shifts left when log out button is pressed
+# TODO Write channel handler
+# TODO Store channel message text in a dict so it can persist on channel updates when tabs are destroyed and rebuilt
 
 #! Auth
 # TODO Verify token expiry is working as expected
@@ -25,6 +23,7 @@ if __name__ == "__main__":
 #! Database
 # TODO Add password salt to database
 # TODO Add database functions to update channel subscriptions
+# TODO Make db_manager async
 
 #! General
 # TODO Add proper logging
