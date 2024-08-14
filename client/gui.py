@@ -468,20 +468,18 @@ class Chattr:
     def build_channel_tabs(self):
         if self.channels:
             for channel_name in self.channels:
-                # self.nb_tabs[channel_name] = ttk.Frame(self.nb, width=500, height=300)
                 text_field = tk.Text(self.nb, wrap="word", state="disabled")
                 text_field.grid(row=0, column=0, sticky="nsew")
                 self.nb_tabs[channel_name] = text_field
+                if len(channel_name) > 10:
+                    channel_name_displayed = f"{channel_name[:7]}..."
+                else:
+                    channel_name_displayed = channel_name
                 self.nb.add(
-                    self.nb_tabs[channel_name], text=channel_name[:10], sticky="nsew"
+                    self.nb_tabs[channel_name],
+                    text=channel_name_displayed,
+                    sticky="nsew",
                 )
-
-        # self.page0 = ttk.Frame(self.nb, width=500, height=300)
-        # self.page1 = ttk.Frame(self.nb, width=500, height=300)
-        # self.page2 = ttk.Frame(self.nb, width=500, height=300)
-
-        # self.nb.add(self.page1, text="Page 2", sticky="nsew")
-        # self.nb.add(self.page2, text="Page 3", sticky="nsew")
 
     def configure_login_responsive(self):
         # Configure grid row and column weights for login responsive behaviour
