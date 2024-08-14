@@ -40,6 +40,10 @@ class ConnectionManager:
         # self.active_connections[username] = websocket
         # self.user_channels[username] = await self.get_user_channels(username)
 
+        info_message = {"event": "channel_subscriptions", "data": list(channels)}
+
+        await websocket.send_text(json.dumps(info_message))
+
         # Starts the redis listener once at least one user is connected.
         if not self.listener_task or self.listener_task.done():
             self.listener_task = asyncio.create_task(self.start_listener())
