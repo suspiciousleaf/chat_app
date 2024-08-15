@@ -48,6 +48,16 @@ class ConnectionManager:
 
         await websocket.send_text(json.dumps(info_message))
 
+        message_history: list = self.db.retrieve_message_history(channels)
+
+        # If any messages are in the cache, add the to the message history to send to newly logged in accounts
+        if self.message_cache:
+            message_history.extend(self.message_cache)
+
+        history_message = {"event": "message history", "data": message_history}
+
+        await websocket.send_text(json.dumps(history_message))
+
         # Starts the redis listener once at least one user is connected.
         if not self.listener_task or self.listener_task.done():
             self.listener_task = asyncio.create_task(self.start_listener())
