@@ -199,7 +199,7 @@ class DatabaseManager:
                 "username": message[0],
                 "channel": message[1],
                 "content": message[2],
-                "sent_at": self.convert_datetime(message[3]),
+                "sent_at": message[3],
             }
             for message in message_history_raw
         ]
