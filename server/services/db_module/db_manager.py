@@ -192,7 +192,7 @@ class DatabaseManager:
         """Retrieve all messages for the specified channels"""
         placeholders = ",".join(["?" for _ in channels])
         query = f"SELECT username, channel, content, sent_at FROM messages WHERE channel in ({placeholders})"
-        message_history_raw = self.select_query(query, channels)
+        message_history_raw = self.select_query(query, list(channels))
 
         return [
             {
