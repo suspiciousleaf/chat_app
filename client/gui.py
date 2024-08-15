@@ -396,10 +396,14 @@ class Chattr:
                 )
                 message: dict = self.decode_received_message(message_str)
                 if message is not None:
-                    ## "messages" can contain event information such as channel subscriptions, or message data. This filters based on keys present.
-                    if message.get("event") == "channel_subscriptions":
+                    # "messages" can contain event information such as channel subscriptions, or message data. This filters based on keys present.
+                    event_type = message.get("event")
+                    if event_type == "channel_subscriptions":
                         self.channels = message.get("data")
                         self.build_channel_tabs()
+                    elif event_type == "message history":
+                        for individual_message in message.get("data", []):
+                            self.process_received_message(individual_message)
                     else:
                         self.process_received_message(message)
             except asyncio.TimeoutError:
@@ -439,10 +443,6 @@ class Chattr:
             print(f"Unknown error occurred when decoding message: {e}")
 
     def create_text_field(self):
-        # text_field = tk.Text(self.frames["chat"], wrap="word", state="disabled")
-        # text_field.grid(row=0, column=0, columnspan=2, sticky="nsew")
-        # self.fields["text"] = text_field
-
         self.style = ttk.Style()
         self.style.configure(
             "lefttab.TNotebook", tabposition=tk.W + tk.N, tabplacement=tk.N + tk.EW
