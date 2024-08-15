@@ -188,6 +188,22 @@ class DatabaseManager:
         channels = set(json.loads(channels_str))
         return channels
 
+    def retrieve_message_history(self, channels: set) -> list:
+        """Retrieve all messages for the specified channels"""
+        placeholders = ",".join(["?" for _ in channels])
+        query = f"SELECT username, channel, content, sent_at FROM messages WHERE channel in ({placeholders})"
+        message_history_raw = self.select_query(query, channels)
+
+        return [
+            {
+                "username": message[0],
+                "channel": message[1],
+                "content": message[2],
+                "sent_at": self.convert_datetime(message[3]),
+            }
+            for message in message_history_raw
+        ]
+
     def update_channels(self, username: str, channel: str):
         """Update a user's subscribed channels, add if absent, remove if present"""
         current_channels = self.retrieve_channels(username)
@@ -264,12 +280,13 @@ class DatabaseManager:
     @staticmethod
     def convert_datetime(val: str) -> datetime.datetime:
         """Convert ISO 8601 string to datetime.datetime object."""
-        return datetime.datetime.fromisoformat(val.decode())
+        return datetime.datetime.fromisoformat(val)  # .decode()
 
 
-# # Usage
-# db = DatabaseManager()
-# db.init_database()
+# Usage
+db = DatabaseManager()
+db.init_database()
+db.retrieve_message_history(["welcome", "hello"])
 # print(f"{db.list_tables()=}")
 # print(db.read_db_filepath())
 # print(db.retrieve_channels("username_1"))
