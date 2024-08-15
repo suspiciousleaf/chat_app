@@ -27,18 +27,22 @@ class ConnectionManager:
         self.redis_man = RedisManager()
         self.db = db
         self.listener_task = None
+        # Dict of active connections, {"username":{"ws": websocket, "channels": {"welcome", "hello", etc}}
         self.active_connections: dict[str, dict[WebSocket, set]] = {}
-        # self.channel_participants:dict = {}
+        # Dict of channels with pointers to the websockets of active subscribers {"channel":{"username": websocket"}}
+        self.channel_subscribers: dict[str, dict] = {}
         self.message_cache: list[dict] = []
         self.time_last_message_backup: int = round(time.time())
 
     async def connect(self, websocket: WebSocket, username: str):
         await websocket.accept()
         channels = self.db.retrieve_channels(username)
-        print(f"User is a member of {channels} channels")
+        print(f"{username} is a member of {channels} channels")
         self.active_connections[username] = {"ws": websocket, "channels": channels}
-        # self.active_connections[username] = websocket
-        # self.user_channels[username] = await self.get_user_channels(username)
+        for channel in channels:
+            if channel not in self.channel_subscribers:
+                self.channel_subscribers[channel] = {}
+            self.channel_subscribers[channel][username] = websocket
 
         info_message = {"event": "channel_subscriptions", "data": list(channels)}
 
@@ -50,12 +54,13 @@ class ConnectionManager:
             print("First connection opened, starting listener")
 
     async def disconnect(self, username: str):
-        # self.active_connections.pop(username, None)
-        # self.user_channels.pop(username, None)
         # TODO Could use this to send a 'user disconnected' message to the channel
-        # connection = self.active_connections.get(username)
-        # if connection["ws"]:
-        #     await connection["ws"].close()
+
+        # Loop through all channels that a username is subscribed to, and remove that username from each channel's dict of subscribed users. If that channel no longer has any subscribed users connected, remove it from the dict of active channels. Finally remove user from the dict of active connections
+        for channel in self.active_connections[username].get("channels", []):
+            self.channel_subscribers[channel].pop(username)
+            if not self.channel_subscribers[channel]:
+                self.channel_subscribers.pop(channel)
         self.active_connections.pop(username, None)
 
         # Disable listener if there are no active connections
@@ -67,15 +72,16 @@ class ConnectionManager:
             print("No active connections, stopping listener. Message cache uploaded")
 
     async def broadcast(self, message: dict):
+        """Send message to all active connections that are subscribed to that channel"""
         channel = message.get("channel")
-        # print(f"Channel as seen by broadcast: {channel}")
-        for username, user_connection in self.active_connections.items():
-            if channel in user_connection["channels"]:
-                # print(f"Sending {message} to {username}")
-                await user_connection["ws"].send_text(json.dumps(message))
+        # Convert message to string so it can be sent over websocket
+        message_str = json.dumps(message)
+        # Loop through all active connections subscribed to that channel and send the message
+        for websocket in self.channel_subscribers.get(channel).values():
+            await websocket.send_text(message_str)
 
     async def listen_for_messages(self):
-        # If no messages in queue, wait 0.25 seconds and then check again. As long as there are messages in the queue, send them out as fast as possible.
+        # If no messages in queue, wait 0.1 seconds and then check again. As long as there are messages in the queue, send them out as fast as possible.
         while True:
             try:
                 await self.cached_messages_watcher()
