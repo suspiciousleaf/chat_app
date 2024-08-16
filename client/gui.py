@@ -66,6 +66,7 @@ class Chattr:
         self.entries: dict[str, tk.Entry] = {}
         self.fields: dict = {}
         self.frames: dict[str, ttk.Frame] = {}
+        self.context_event: Event | None = None
 
         self.nb: ttk.Notebook | None = None
         self.nb_tabs: dict = {}
@@ -456,14 +457,94 @@ class Chattr:
                 }
             },
         )
+        self.style.configure("TNotebook", tabposition="wn")
         self.nb = ttk.Notebook(self.frames["chat"], style="lefttab.TNotebook")
         self.nb.grid(row=0, column=0, sticky="nsew")
         self.style.configure("TFrame", background="white")
         # Each time the active tab is changed, this virtual event will update self.active_channel
         self.nb.bind("<<NotebookTabChanged>>", self.set_active_channel)
 
+        self.create_nb_context_menu()
+        # Bind right-click event to each tab
+        self.nb.bind("<Button-3>", self.show_context_menu)
+
+    def create_nb_context_menu(self):
+        """Create context menus to add or add/leave channels"""
+        # Create add/leave context menu
+        add_leave_context_menu = tk.Menu(self.nb, tearoff=0)
+        add_leave_context_menu.add_command(
+            label="Add new channel",
+            command=lambda: self.add_new_channel(),
+        )
+        add_leave_context_menu.add_command(
+            label="Leave Channel", command=lambda: self.leave_channel()
+        )
+        self.nb.add_leave_context: tk.Menu = add_leave_context_menu
+
+        # Create add-only context menu
+        add_context_menu = tk.Menu(self.nb, tearoff=0)
+        add_context_menu.add_command(
+            label="Add new channel",
+            command=lambda: self.add_new_channel(),
+        )
+        self.nb.add_context_menu: tk.Menu = add_context_menu
+
+    def show_context_menu(self, event):
+        """Show the relevant context menu based on cursor position"""
+        try:
+            self.context_event = event
+            try:
+                tab_index = self.nb.index(f"@{event.x},{event.y}")
+            except:
+                tab_index = -1
+            if tab_index != -1:
+                self.nb.add_leave_context.post(event.x_root, event.y_root)
+            else:
+                self.nb.add_context_menu.post(event.x_root, event.y_root)
+        except Exception as e:
+            print(f"Error showing context menu: {e}")
+
+    def leave_channel(self):
+        print("leave_channel()")
+
+        event = self.context_event
+
+        if event:
+            tab_index = self.nb.index(f"@{event.x},{event.y}")
+
+            channel_name = self.nb.tab(tab_index, "text")
+            print(f"Removing channel: {channel_name}")
+
+            # # Remove the channel from the list and the notebook
+            # if channel_name in self.channels:
+            #     self.channels.remove(channel_name)
+            # if channel_name in self.nb_tabs:
+            #     del self.nb_tabs[channel_name]
+            # self.nb.forget(tab_index)
+
+            # # If this was the last tab, set active_channel to None
+            # if not self.channels:
+            #     self.active_channel = None
+            # # Otherwise, set it to the new current tab
+            # else:
+            #     self.set_active_channel()
+
+            # # TODO: Notify the server that we've left this channel
+
+    def add_new_channel(self, event=None):
+        print("add_new_channel()")
+        if event is None:
+            event = self.context_event
+        print(event)
+
     def set_active_channel(self, event=None):
-        self.active_channel = self.channels[self.nb.index(self.nb.select())]
+        # self.active_channel = self.channels[self.nb.index(self.nb.select())]
+
+        selected_tab = self.nb.select()
+        if selected_tab:
+            self.active_channel = self.nb.tab(selected_tab, "text")
+        else:
+            self.active_channel = None
 
     def build_channel_tabs(self):
         if self.channels:
@@ -471,15 +552,15 @@ class Chattr:
                 text_field = tk.Text(self.nb, wrap="word", state="disabled")
                 text_field.grid(row=0, column=0, sticky="nsew")
                 self.nb_tabs[channel_name] = text_field
-                if len(channel_name) > 10:
-                    channel_name_displayed = f"{channel_name[:7]}..."
-                else:
-                    channel_name_displayed = channel_name
+
                 self.nb.add(
                     self.nb_tabs[channel_name],
-                    text=channel_name_displayed,
+                    text=channel_name,
                     sticky="nsew",
                 )
+
+        # Set a fixed width for all tabs. This will truncate long names but allow them to be viewed on hover
+        self.nb.configure(width=40)
 
     def configure_login_responsive(self):
         # Configure grid row and column weights for login responsive behaviour
