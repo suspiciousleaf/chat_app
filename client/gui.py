@@ -7,6 +7,7 @@ import json
 from json import JSONDecodeError
 import requests
 import time
+from _tkinter import TclError
 
 from client.services.client_websocket import MyWebSocket
 
@@ -463,10 +464,13 @@ class Chattr:
         self.style.configure("TFrame", background="white")
         # Each time the active tab is changed, this virtual event will update self.active_channel
         self.nb.bind("<<NotebookTabChanged>>", self.set_active_channel)
+        # self.nb.bind("<Button-3>", self.on_notebook_right_click)
+        # Bind right-click event to the notebook tabs
+        self.nb.bind("<Button-3>", self.show_context_menu_with_channel_name)
 
         self.create_nb_context_menu()
         # Bind right-click event to each tab
-        self.nb.bind("<Button-3>", self.show_context_menu)
+        # self.nb.bind("<Button-3>", self.show_context_menu)
 
     def create_nb_context_menu(self):
         """Create context menus to add or add/leave channels"""
@@ -488,6 +492,18 @@ class Chattr:
             command=lambda: self.add_new_channel(),
         )
         self.nb.add_context_menu: tk.Menu = add_context_menu
+
+    def on_tab_right_click(self, event, channel_name):
+        # # Focus on the right-clicked tab
+        # selected_tab = self.nb_tabs[channel_name]
+        # self.nb.select(selected_tab)
+
+        # Handle the right-click action for this specific tab
+        print(f"{channel_name} tab clicked")
+
+    def on_notebook_right_click(self, event):
+        # # Handle the right-click action for the notebook background (outside of tabs)
+        print("Right-clicked on the notebook, but not on a tab")
 
     def show_context_menu(self, event):
         """Show the relevant context menu based on cursor position"""
@@ -546,21 +562,71 @@ class Chattr:
         else:
             self.active_channel = None
 
+    # def build_channel_tabs(self):
+    #     if self.channels:
+    #         for channel_name in self.channels:
+    #             text_field = tk.Text(self.nb, wrap="word", state="disabled")
+    #             text_field.grid(row=0, column=0, sticky="nsew")
+    #             self.nb_tabs[channel_name] = text_field
+
+    #             self.nb.add(
+    #                 self.nb_tabs[channel_name],
+    #                 text=channel_name,
+    #                 sticky="nsew",
+    #             )
+
+    # #! Does not work
+    # # Set a fixed width for all tabs. This will truncate long names but allow them to be viewed on hover
+    # self.nb.configure(width=400)
+
     def build_channel_tabs(self):
         if self.channels:
             for channel_name in self.channels:
-                text_field = tk.Text(self.nb, wrap="word", state="disabled")
-                text_field.grid(row=0, column=0, sticky="nsew")
-                self.nb_tabs[channel_name] = text_field
+                self.add_channel(channel_name)
 
-                self.nb.add(
-                    self.nb_tabs[channel_name],
-                    text=channel_name,
-                    sticky="nsew",
-                )
+    def add_channel(self, channel_name):
+        # Create a text field for the new channel
+        text_field = tk.Text(self.nb, wrap="word", state="disabled")
+        text_field.grid(row=0, column=0, sticky="nsew")
 
-        # Set a fixed width for all tabs. This will truncate long names but allow them to be viewed on hover
-        self.nb.configure(width=40)
+        # Store the text field in the nb_tabs dictionary
+        self.nb_tabs[channel_name] = text_field
+
+        # Truncate the channel name if necessary for display
+        if len(channel_name) > 10:
+            channel_name_displayed = f"{channel_name[:7]}..."
+        else:
+            channel_name_displayed = channel_name
+
+        # Add the tab to the notebook using the truncated name for display
+        self.nb.add(
+            text_field,
+            text=channel_name_displayed,
+            sticky="nsew",
+        )
+
+    def show_context_menu_with_channel_name(self, event):
+        """Show context menu and identify which tab was right-clicked."""
+        try:
+            # Try to identify the index of the tab that was right-clicked
+            tab_index = self.nb.index(f"@{event.x},{event.y}")
+            print(f"{tab_index=}")
+            if tab_index != "":
+                # Get the full channel name from the nb_tabs dictionary
+                for channel_name, text_field in self.nb_tabs.items():
+                    if text_field == self.nb.nametowidget(self.nb.tabs()[tab_index]):
+                        # Now you have the full channel name
+                        print(f"Right-clicked on tab: {channel_name}")
+                        self.on_tab_right_click(event, channel_name)
+                        break
+            # else:
+            #     # If no tab is clicked, handle right-click on the notebook background
+            #     self.on_notebook_right_click(event)
+        except TclError as e:
+            if str(e) == 'expected integer but got ""':
+                self.on_notebook_right_click(event)
+        except:
+            print(f"Error determining the right-clicked tab: {e}")
 
     def configure_login_responsive(self):
         # Configure grid row and column weights for login responsive behaviour

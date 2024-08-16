@@ -7,6 +7,10 @@ if __name__ == "__main__":
 #! Client
 # TODO Make buttons remain still between screens during login
 # TODO Store channel message text in a dict so it can persist on channel updates when tabs are destroyed and rebuilt
+# TODO show_context_menu() needs a try/except block when not clicking on a tab, find out why
+# TODO Right click behavbiour is correct, but code is a mess. Trigger the correct context menus, then remove unused functions around context menus
+# TODO Maybe open a PR to fix the issue of .index returning "" and causing TclError? Should return -1 if clicking outside of a tab, not through an exception
+# TODO Change channel sub behaviour so adding or removing a channel sends a formatted ws message, which updates db and then sends a formatted message back that causes the channels to update
 
 #! Auth
 # TODO Verify token expiry is working as expected
