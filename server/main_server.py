@@ -78,6 +78,13 @@ async def create_account_endpoint(account: AccountCreate):
     return db.create_account(account.username, account.password)
 
 
+@app.put("/update_channels", status_code=status.HTTP_200_OK)
+async def update_channels(
+    channels: list[str], current_user: User = Depends(get_current_active_user)
+):
+    connection_man.db.update_channels(current_user.username, channels)
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Websocket endpoint to send and receive messages"""
@@ -135,7 +142,7 @@ async def shutdown_event():
         except asyncio.CancelledError:
             pass
     # Close all active WebSocket connections
-    for username, connection in connection_man.active_connections.items():
+    for connection in connection_man.active_connections.values():
         await connection["ws"].close()
     connection_man.active_connections.clear()
     db.close_all()
