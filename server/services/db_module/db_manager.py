@@ -204,19 +204,26 @@ class DatabaseManager:
             for message in message_history_raw
         ]
 
-    def update_channels(self, username: str, channel: str):
-        """Update a user's subscribed channels, add if absent, remove if present"""
-        current_channels = self.retrieve_channels(username)
+    # def update_channels(self, username: str, channel: str):
+    #     """Update a user's subscribed channels, add if absent, remove if present"""
+    #     current_channels = self.retrieve_channels(username)
 
-        if channel in current_channels:
-            current_channels.remove(channel)
-        else:
-            current_channels.add(channel)
+    #     if channel in current_channels:
+    #         current_channels.remove(channel)
+    #     else:
+    #         current_channels.add(channel)
 
-        channels_str = json.dumps(list(current_channels))
+    #     channels_str = json.dumps(list(current_channels))
+    #     self.update_query(
+    #         "UPDATE users SET channels = :channels WHERE username = :username",
+    #         {"channels": channels_str, "username": username},
+    #     )
+
+    def update_channels(self, username: str, channels: list[str]):
+        """Update a user's subscribed channels to match the new lsit"""
         self.update_query(
             "UPDATE users SET channels = :channels WHERE username = :username",
-            {"channels": channels_str, "username": username},
+            {"channels": json.dumps(channels), "username": username},
         )
 
     def update_query(self, query: str, values: dict):
