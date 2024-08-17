@@ -21,11 +21,14 @@ if __name__ == "__main__":
 # TODO Add ability for people to update their channel subscriptions via endpoint
 # TODO Auth is using its own instance of db_manager, refactor to pass through the main instance
 # TODO check disconnect logic
+# TODO Parse received messages for add / leave channel
 
 #! Database
 # TODO Add password salt to database
 # TODO Add database functions to update channel subscriptions
 # TODO Make db_manager async
+# TODO DB method to add channel
+# TODO DB method to leave channel
 
 #! General
 # TODO Add proper logging
