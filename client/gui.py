@@ -67,7 +67,9 @@ class Chattr:
         self.entries: dict[str, tk.Entry] = {}
         self.fields: dict = {}
         self.frames: dict[str, ttk.Frame] = {}
-        self.context_event: Event | None = None
+        self.context_menu_target_channel: dict = {}
+        self.tab_to_channel = {}  # Maps tab widget names to full channel names
+        # self.context_event: Event | None = None
 
         self.nb: ttk.Notebook | None = None
         self.nb_tabs: dict = {}
@@ -237,7 +239,7 @@ class Chattr:
         self.create_container_frame()
         self.create_chat_frame()
         self.create_bottom_frame()
-        self.create_text_field()
+        self.create_notebook()
         self.create_text_entry()
         self.create_logout_button()
         self.create_send_button()
@@ -257,17 +259,8 @@ class Chattr:
         send_button = ttk.Button(
             self.frames["bottom"], text="Send", command=self.send_message
         )
-        send_button.grid(
-            row=0, column=2, sticky="es", padx=2, pady=2
-        )  # padx=(0, 5), pady=5)
+        send_button.grid(row=0, column=2, sticky="es", padx=2, pady=2)
         self.buttons["send"] = send_button
-
-    # def create_channel_placeholder(self):
-    #     channel_label = ttk.Label(
-    #         self.frames["channel"], text="Channels", wraplength=self.channel_width - 10
-    #     )
-    #     channel_label.grid(row=0, column=0, sticky="n")
-    #     self.labels["channel_placeholder"] = channel_label
 
     def get_auth_token(self) -> dict | None:
         """Submits username and password to get a bearer token from the server"""
@@ -402,6 +395,8 @@ class Chattr:
                     event_type = message.get("event")
                     if event_type == "channel_subscriptions":
                         self.channels = message.get("data")
+                        if self.channels is not None:
+                            self.channels.sort()
                         self.build_channel_tabs()
                     elif event_type == "message history":
                         for individual_message in message.get("data", []):
@@ -444,7 +439,7 @@ class Chattr:
         except Exception as e:
             print(f"Unknown error occurred when decoding message: {e}")
 
-    def create_text_field(self):
+    def create_notebook(self):
         self.style = ttk.Style()
         self.style.configure(
             "lefttab.TNotebook", tabposition=tk.W + tk.N, tabplacement=tk.N + tk.EW
@@ -458,23 +453,19 @@ class Chattr:
                 }
             },
         )
-        self.style.configure("TNotebook", tabposition="wn")
+        # self.style.configure("TNotebook", tabposition="wn")
         self.nb = ttk.Notebook(self.frames["chat"], style="lefttab.TNotebook")
         self.nb.grid(row=0, column=0, sticky="nsew")
-        self.style.configure("TFrame", background="white")
+        # self.style.configure("TFrame", background="white")
         # Each time the active tab is changed, this virtual event will update self.active_channel
         self.nb.bind("<<NotebookTabChanged>>", self.set_active_channel)
-        # self.nb.bind("<Button-3>", self.on_notebook_right_click)
         # Bind right-click event to the notebook tabs
         self.nb.bind("<Button-3>", self.show_context_menu_with_channel_name)
 
-        self.create_nb_context_menu()
-        # Bind right-click event to each tab
-        # self.nb.bind("<Button-3>", self.show_context_menu)
+        self.create_nb_context_menus()
 
-    def create_nb_context_menu(self):
+    def create_nb_context_menus(self):
         """Create context menus to add or add/leave channels"""
-        # Create add/leave context menu
         add_leave_context_menu = tk.Menu(self.nb, tearoff=0)
         add_leave_context_menu.add_command(
             label="Add new channel",
@@ -493,91 +484,52 @@ class Chattr:
         )
         self.nb.add_context_menu: tk.Menu = add_context_menu
 
-    def on_tab_right_click(self, event, channel_name):
-        # # Focus on the right-clicked tab
-        # selected_tab = self.nb_tabs[channel_name]
-        # self.nb.select(selected_tab)
-
-        # Handle the right-click action for this specific tab
-        print(f"{channel_name} tab clicked")
+    def on_tab_right_click(self, event, channel_name: str, tab_index: int):
+        """Handle the right-click action for chosen tab"""
+        self.context_menu_target_channel = {
+            "channel_name": channel_name,
+            "tab_index": tab_index,
+        }
+        self.nb.add_leave_context.post(event.x_root, event.y_root)
 
     def on_notebook_right_click(self, event):
-        # # Handle the right-click action for the notebook background (outside of tabs)
-        print("Right-clicked on the notebook, but not on a tab")
-
-    def show_context_menu(self, event):
-        """Show the relevant context menu based on cursor position"""
-        try:
-            self.context_event = event
-            try:
-                tab_index = self.nb.index(f"@{event.x},{event.y}")
-            except:
-                tab_index = -1
-            if tab_index != -1:
-                self.nb.add_leave_context.post(event.x_root, event.y_root)
-            else:
-                self.nb.add_context_menu.post(event.x_root, event.y_root)
-        except Exception as e:
-            print(f"Error showing context menu: {e}")
+        """Handle the right-click action for the notebook background (outside of tabs)"""
+        self.nb.add_context_menu.post(event.x_root, event.y_root)
 
     def leave_channel(self):
-        print("leave_channel()")
+        channel_name = self.context_menu_target_channel.get("channel_name")
+        tab_index = self.context_menu_target_channel.get("tab_index")
 
-        event = self.context_event
+        # Remove the channel from the list and the notebook
+        if channel_name in self.channels:
+            self.channels.remove(channel_name)
+        if channel_name in self.nb_tabs:
+            tab_widget = self.nb_tabs[channel_name]
+            del self.nb_tabs[channel_name]
+            # Remove the mapping from tab_to_channel
+            if str(tab_widget) in self.tab_to_channel:
+                del self.tab_to_channel[str(tab_widget)]
 
-        if event:
-            tab_index = self.nb.index(f"@{event.x},{event.y}")
+        self.nb.forget(tab_index)
 
-            channel_name = self.nb.tab(tab_index, "text")
-            print(f"Removing channel: {channel_name}")
+        # If this was the last tab, set active_channel to None
+        if not self.channels:
+            self.active_channel = None
+        # Otherwise, set it to the new current tab
+        else:
+            self.set_active_channel()
 
-            # # Remove the channel from the list and the notebook
-            # if channel_name in self.channels:
-            #     self.channels.remove(channel_name)
-            # if channel_name in self.nb_tabs:
-            #     del self.nb_tabs[channel_name]
-            # self.nb.forget(tab_index)
+        # TODO: Notify the server that we've left this channel
 
-            # # If this was the last tab, set active_channel to None
-            # if not self.channels:
-            #     self.active_channel = None
-            # # Otherwise, set it to the new current tab
-            # else:
-            #     self.set_active_channel()
-
-            # # TODO: Notify the server that we've left this channel
-
-    def add_new_channel(self, event=None):
+    def add_new_channel(self):
         print("add_new_channel()")
-        if event is None:
-            event = self.context_event
-        print(event)
 
     def set_active_channel(self, event=None):
-        # self.active_channel = self.channels[self.nb.index(self.nb.select())]
-
         selected_tab = self.nb.select()
         if selected_tab:
-            self.active_channel = self.nb.tab(selected_tab, "text")
+            self.active_channel = self.tab_to_channel.get(str(selected_tab))
         else:
             self.active_channel = None
-
-    # def build_channel_tabs(self):
-    #     if self.channels:
-    #         for channel_name in self.channels:
-    #             text_field = tk.Text(self.nb, wrap="word", state="disabled")
-    #             text_field.grid(row=0, column=0, sticky="nsew")
-    #             self.nb_tabs[channel_name] = text_field
-
-    #             self.nb.add(
-    #                 self.nb_tabs[channel_name],
-    #                 text=channel_name,
-    #                 sticky="nsew",
-    #             )
-
-    # #! Does not work
-    # # Set a fixed width for all tabs. This will truncate long names but allow them to be viewed on hover
-    # self.nb.configure(width=400)
 
     def build_channel_tabs(self):
         if self.channels:
@@ -605,27 +557,26 @@ class Chattr:
             sticky="nsew",
         )
 
+        # Store the mapping of tab widget name to full channel name
+        self.tab_to_channel[str(text_field)] = channel_name
+
     def show_context_menu_with_channel_name(self, event):
         """Show context menu and identify which tab was right-clicked."""
         try:
             # Try to identify the index of the tab that was right-clicked
             tab_index = self.nb.index(f"@{event.x},{event.y}")
-            print(f"{tab_index=}")
-            if tab_index != "":
-                # Get the full channel name from the nb_tabs dictionary
-                for channel_name, text_field in self.nb_tabs.items():
-                    if text_field == self.nb.nametowidget(self.nb.tabs()[tab_index]):
-                        # Now you have the full channel name
-                        print(f"Right-clicked on tab: {channel_name}")
-                        self.on_tab_right_click(event, channel_name)
-                        break
-            # else:
-            #     # If no tab is clicked, handle right-click on the notebook background
-            #     self.on_notebook_right_click(event)
+            if tab_index is not None:
+                tab_widget = self.nb.tabs()[tab_index]
+                full_channel_name = self.tab_to_channel.get(str(tab_widget))
+                if full_channel_name:
+                    self.on_tab_right_click(event, full_channel_name, tab_index)
         except TclError as e:
+            # If no tab is clicked, handle right-click on the notebook background
             if str(e) == 'expected integer but got ""':
                 self.on_notebook_right_click(event)
-        except:
+            else:
+                print(f"Error determining the right-clicked tab: {e}")
+        except Exception as e:
             print(f"Error determining the right-clicked tab: {e}")
 
     def configure_login_responsive(self):
