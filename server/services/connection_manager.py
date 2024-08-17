@@ -36,7 +36,7 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, username: str):
         await websocket.accept()
-        channels = self.db.retrieve_channels(username)
+        channels: set = self.db.retrieve_channels(username)
         print(f"{username} is a member of {channels} channels")
         self.active_connections[username] = {"ws": websocket, "channels": channels}
         for channel in channels:
@@ -44,24 +44,46 @@ class ConnectionManager:
                 self.channel_subscribers[channel] = {}
             self.channel_subscribers[channel][username] = websocket
 
-        info_message = {"event": "channel_subscriptions", "data": list(channels)}
-
-        await websocket.send_text(json.dumps(info_message))
-
-        message_history: list = self.db.retrieve_message_history(channels)
-
-        # If any messages are in the cache, add the to the message history to send to newly logged in accounts
-        if self.message_cache:
-            message_history.extend(self.message_cache)
-
-        history_message = {"event": "message history", "data": message_history}
-
-        await websocket.send_text(json.dumps(history_message))
+        await self.send_channel_subscriptions(websocket, channels)
+        await self.send_channel_history(websocket, channels)
 
         # Starts the redis listener once at least one user is connected.
         if not self.listener_task or self.listener_task.done():
             self.listener_task = asyncio.create_task(self.start_listener())
             print("First connection opened, starting listener")
+
+    async def send_channel_subscriptions(self, websocket: WebSocket, channels: set):
+        """Send a formatted message to the client with a list of channels that the user account is subscribed to"""
+
+        info_message = {"event": "channel_subscriptions", "data": list(channels)}
+        await websocket.send_text(json.dumps(info_message))
+
+    async def send_channel_history(self, websocket, channels):
+        """Send the message history for all subscribed channels to the client"""
+        message_history: list = self.db.retrieve_message_history(channels)
+
+        # If any messages are in the cache, add the to the message history to send to newly logged in accounts
+        if self.message_cache:
+            for message in self.message_cache:
+                if message.get("channel") in channels:
+                    message_history.extend(message)
+
+        history_message = {"event": "message history", "data": message_history}
+
+        await websocket.send_text(json.dumps(history_message))
+
+    async def leave_channel(self, username, channel):
+        print(f"{username} has left {channel}")
+        self.db.remove_channel(username, channel)
+
+    async def add_channel(self, username, channel: str):
+        self.db.add_channel(username, channel)
+        await self.send_channel_subscriptions(
+            self.active_connections[username]["ws"], set(channel)
+        )
+        await self.send_channel_history(
+            self.active_connections[username]["ws"], set(channel)
+        )
 
     async def disconnect(self, username: str):
         # TODO Could use this to send a 'user disconnected' message to the channel
