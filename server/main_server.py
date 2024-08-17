@@ -78,13 +78,6 @@ async def create_account_endpoint(account: AccountCreate):
     return db.create_account(account.username, account.password)
 
 
-@app.put("/update_channels", status_code=status.HTTP_200_OK)
-async def update_channels(
-    channels: list[str], current_user: User = Depends(get_current_active_user)
-):
-    connection_man.db.update_channels(current_user.username, channels)
-
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Websocket endpoint to send and receive messages"""
@@ -123,9 +116,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 # TODO Add graceful error handling for batch inserts / fails
                 await connection_man.redis_man.enqueue_message(message)
             elif message_event == "leave_channel":
-                print(message)
+                await connection_man.leave_channel(
+                    message.get("username"), message.get("channel")
+                )
             elif message_event == "add_channel":
+                print("add_channel()")
                 print(message)
+                await connection_man.add_channel(
+                    message.get("username"), message.get("channel")
+                )
     except WebSocketDisconnect:
         await connection_man.disconnect(active_user.username)
     except asyncio.CancelledError:
