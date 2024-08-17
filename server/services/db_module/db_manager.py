@@ -184,7 +184,8 @@ class DatabaseManager:
         query = "SELECT channels FROM users WHERE username = :username"
         values = {"username": username}
         channels_raw = self.select_query(query, values)
-        channels_str: str = channels_raw[0][0] if channels_raw[0][0] else '["welcome"]'
+        print(channels_raw)
+        channels_str: str = channels_raw[0][0] if channels_raw[0][0] else "[]"
         channels = set(json.loads(channels_str))
         return channels
 
@@ -204,26 +205,30 @@ class DatabaseManager:
             for message in message_history_raw
         ]
 
-    # def update_channels(self, username: str, channel: str):
-    #     """Update a user's subscribed channels, add if absent, remove if present"""
-    #     current_channels = self.retrieve_channels(username)
+    def add_channel(self, username: str, channel: str):
+        """Add channel to user's subscribed channels"""
+        current_channels: set = self.retrieve_channels(username)
 
-    #     if channel in current_channels:
-    #         current_channels.remove(channel)
-    #     else:
-    #         current_channels.add(channel)
+        if channel not in current_channels:
+            current_channels.add(channel)
 
-    #     channels_str = json.dumps(list(current_channels))
-    #     self.update_query(
-    #         "UPDATE users SET channels = :channels WHERE username = :username",
-    #         {"channels": channels_str, "username": username},
-    #     )
-
-    def update_channels(self, username: str, channels: list[str]):
-        """Update a user's subscribed channels to match the new lsit"""
+        channels_str = json.dumps(list(current_channels))
         self.update_query(
             "UPDATE users SET channels = :channels WHERE username = :username",
-            {"channels": json.dumps(channels), "username": username},
+            {"channels": channels_str, "username": username},
+        )
+
+    def remove_channel(self, username: str, channel: str):
+        """Remove channel from user's subscribed channels"""
+        current_channels: set = self.retrieve_channels(username)
+
+        if channel in current_channels:
+            current_channels.remove(channel)
+
+        channels_str = json.dumps(list(current_channels))
+        self.update_query(
+            "UPDATE users SET channels = :channels WHERE username = :username",
+            {"channels": channels_str, "username": username},
         )
 
     def update_query(self, query: str, values: dict):
