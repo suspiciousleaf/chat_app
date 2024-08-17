@@ -33,6 +33,7 @@ CHANNEL_WIDTH = 75
 
 # Format for text message as received:
 # {
+#   "event": "message",
 #   "channel": "username_1",
 #   "sender": "user123",
 #   "content": "Hello, world!",
@@ -41,11 +42,18 @@ CHANNEL_WIDTH = 75
 
 # Format for text message as sent:
 # {
+#   "event": "message",
 #   "channel": "welcome",
 #   "content": "Hello, world!",
 # }
 
 # Format for info message as received:
+# {
+#   "event": "channel_subscriptions",
+#   "data": ["welcome", "hello",...]
+# }
+
+# Format for info message as sent:
 # {
 #   "event": "channel_subscriptions",
 #   "data": ["welcome", "hello",...]
@@ -512,6 +520,8 @@ class Chattr:
 
         self.nb.forget(tab_index)
 
+        self.leave_channel_server_notification(channel_name)
+
         # If this was the last tab, set active_channel to None
         if not self.channels:
             self.active_channel = None
@@ -521,8 +531,23 @@ class Chattr:
 
         # TODO: Notify the server that we've left this channel
 
-    def add_new_channel(self):
+    def leave_channel_server_notification(self, channel_name):
+        """Create the leave channel message and send to the server"""
+
+        formatted_message = {"event": "leave_channel", "channel": channel_name}
+
+        asyncio.run_coroutine_threadsafe(
+            self.client_websocket.send_message(formatted_message), self.loop
+        )
+
+    def add_new_channel(self, channel_name):
+        """Create the leave channel message and send to the server"""
         print("add_new_channel()")
+        formatted_message = {"event": "add_channel", "channel": channel_name}
+
+        asyncio.run_coroutine_threadsafe(
+            self.client_websocket.send_message(formatted_message), self.loop
+        )
 
     def set_active_channel(self, event=None):
         selected_tab = self.nb.select()
@@ -608,6 +633,7 @@ class Chattr:
             # Message formatted as json to send to server
             formatted_message: dict = {
                 # Username is added in the server from the bearer token to ensure accuracy
+                "event": "message",
                 "channel": self.active_channel,
                 "content": message.strip(),
             }
