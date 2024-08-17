@@ -106,7 +106,7 @@ class ConnectionManager:
                 await asyncio.sleep(0.1)
 
             except Exception as e:
-                print(f"Error in message listener: {str(e)}")
+                print(f"Error in message listener: {e}")
                 await asyncio.sleep(1)
 
     async def start_listener(self):
