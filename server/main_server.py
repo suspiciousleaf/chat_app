@@ -120,8 +120,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     message.get("username"), message.get("channel")
                 )
             elif message_event == "add_channel":
-                print("add_channel()")
-                print(message)
                 await connection_man.add_channel(
                     message.get("username"), message.get("channel")
                 )
