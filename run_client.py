@@ -7,9 +7,7 @@ if __name__ == "__main__":
 #! Client
 # TODO Make buttons remain still between screens during login
 # TODO Store channel message text in a dict so it can persist on channel updates when tabs are destroyed and rebuilt
-# TODO show_context_menu() needs a try/except block when not clicking on a tab, find out why
-# TODO Make sure username isn't already subscribed to a channel when adding a new one
-
+# TODO channel tab width changes with longer channel names, 10 letters eg wwwwwwwwww
 
 #! Auth
 # TODO Verify token expiry is working as expected
