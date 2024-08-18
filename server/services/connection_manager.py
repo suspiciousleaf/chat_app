@@ -37,7 +37,6 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, username: str):
         await websocket.accept()
         channels: set = self.db.retrieve_channels(username)
-        print(f"{username} is a member of {channels} channels")
         self.active_connections[username] = {"ws": websocket, "channels": channels}
         for channel in channels:
             if channel not in self.channel_subscribers:
@@ -73,16 +72,30 @@ class ConnectionManager:
         await websocket.send_text(json.dumps(history_message))
 
     async def leave_channel(self, username, channel):
-        print(f"{username} has left {channel}")
+        """Remove channel subscription for username"""
         self.db.remove_channel(username, channel)
+        # Check channel is present in list of active users and channel subscriptions, and remove it
+        if channel in self.active_connections[username]["channels"]:
+            self.active_connections[username]["channels"].remove(channel)
+        if username in self.channel_subscribers[channel]:
+            self.channel_subscribers[channel].pop(username)
 
     async def add_channel(self, username, channel: str):
+        """Add a new channel for username"""
+        # Add channel to username's channel list in database
         self.db.add_channel(username, channel)
+        # Add channel to active_connections and channel_subscribers
+        self.active_connections[username]["channels"].add(channel)
+        if channel not in self.channel_subscribers:
+            self.channel_subscribers[channel] = {}
+        self.channel_subscribers[channel][username] = self.active_connections[username][
+            "ws"
+        ]
         await self.send_channel_subscriptions(
-            self.active_connections[username]["ws"], set(channel)
+            self.active_connections[username]["ws"], {channel}
         )
         await self.send_channel_history(
-            self.active_connections[username]["ws"], set(channel)
+            self.active_connections[username]["ws"], {channel}
         )
 
     async def disconnect(self, username: str):
