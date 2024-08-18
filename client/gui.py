@@ -75,9 +75,9 @@ class Chattr:
         self.entries: dict[str, tk.Entry] = {}
         self.fields: dict = {}
         self.frames: dict[str, ttk.Frame] = {}
+        self.popup: dict = {}
         self.context_menu_target_channel: dict = {}
         self.tab_to_channel = {}  # Maps tab widget names to full channel names
-        # self.context_event: Event | None = None
 
         self.nb: ttk.Notebook | None = None
         self.nb_tabs: dict = {}
@@ -488,7 +488,7 @@ class Chattr:
         add_context_menu = tk.Menu(self.nb, tearoff=0)
         add_context_menu.add_command(
             label="Add new channel",
-            command=lambda: self.add_new_channel(),
+            command=lambda: self.add_channel_popup(),
         )
         self.nb.add_context_menu: tk.Menu = add_context_menu
 
@@ -540,14 +540,43 @@ class Chattr:
             self.client_websocket.send_message(formatted_message), self.loop
         )
 
-    def add_new_channel(self, channel_name):
-        """Create the leave channel message and send to the server"""
-        print("add_new_channel()")
-        formatted_message = {"event": "add_channel", "channel": channel_name}
+    def add_channel_popup(self):
+        """Create a popup window to enter new channel name"""
+        popup = tk.Toplevel(self.window, background=OFF_WHITE)
+        popup.geometry("280x25")
+        popup.minsize(280, 25)
+        popup.title("Add new channel")
+        popup.resizable(True, False)
+        popup_entry = ttk.Entry(popup)
+        popup_entry.focus()
 
-        asyncio.run_coroutine_threadsafe(
-            self.client_websocket.send_message(formatted_message), self.loop
-        )
+        popup.grid_columnconfigure(0, weight=1)
+        self.popup["window"] = popup
+        popup_entry.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
+        self.popup["channel_name_entry"]: tk.Entry = popup_entry
+        # Bind Return to channel name entry
+        self.popup["channel_name_entry"].bind("<Return>", self.add_new_channel)
+
+    def add_new_channel(self, event):
+        """Create the add channel message and send to the server"""
+        print("add_new_channel()")
+
+        channel_name = self.popup["channel_name_entry"].get()
+
+        if (
+            channel_name.strip() and channel_name.strip() not in self.channels
+        ):  # Check if the message is not empty, and user isn't already subscribed to that channel
+
+            self.popup["channel_name_entry"].delete(0, tk.END)
+            formatted_message = {
+                "event": "add_channel",
+                "channel": channel_name.strip(),
+            }
+            print(f"{formatted_message=}")
+
+            asyncio.run_coroutine_threadsafe(
+                self.client_websocket.send_message(formatted_message), self.loop
+            )
 
     def set_active_channel(self, event=None):
         selected_tab = self.nb.select()
