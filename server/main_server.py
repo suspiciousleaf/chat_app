@@ -20,10 +20,8 @@ from pprint import pprint
 from server.routers.auth import router as auth_router
 from server.routers.auth import User, get_current_active_user, get_current_user
 
-from server.services.db_module.db_manager import DatabaseManager
+from server.services.db_module.db_manager import db
 from server.services.connection_manager import ConnectionManager
-
-db = DatabaseManager()
 
 
 @asynccontextmanager
