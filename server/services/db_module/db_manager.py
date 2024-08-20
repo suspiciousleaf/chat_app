@@ -51,7 +51,7 @@ class DatabaseManager:
             finally:
                 cursor.close()
 
-    def init_database(self):
+    def init_database(self) -> None:
         create_users_table = """
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY UNIQUE NOT NULL,
@@ -77,7 +77,7 @@ class DatabaseManager:
             cur.execute(create_messages_table)
             cur.connection.commit()
 
-    def insert_query(self, query: str, values: dict):
+    def insert_query(self, query: str, values: dict) -> None:
         """Function to run an INSERT SQL query"""
         with self.get_cursor() as cur:
             try:
@@ -100,7 +100,7 @@ class DatabaseManager:
                 print(f"Error in select_query({query=}, {values=}): \n{e}")
                 return []
 
-    def batch_insert_messages(self, messages: list[dict]):
+    def batch_insert_messages(self, messages: list[dict]) -> None:
         """Insert a batch of messages into the database as a single transaction.
         'messages' format:
         [{"username": username: str,
@@ -184,12 +184,11 @@ class DatabaseManager:
         query = "SELECT channels FROM users WHERE username = :username"
         values = {"username": username}
         channels_raw = self.select_query(query, values)
-        print(channels_raw)
         channels_str: str = channels_raw[0][0] if channels_raw[0][0] else "[]"
         channels = set(json.loads(channels_str))
         return channels
 
-    def retrieve_message_history(self, channels: set) -> list:
+    def retrieve_message_history(self, channels: set) -> list[dict]:
         """Retrieve all messages for the specified channels"""
         placeholders = ",".join(["?" for _ in channels])
         query = f"SELECT username, channel, content, sent_at FROM messages WHERE channel in ({placeholders})"
@@ -205,7 +204,7 @@ class DatabaseManager:
             for message in message_history_raw
         ]
 
-    def add_channel(self, username: str, channel: str):
+    def add_channel(self, username: str, channel: str) -> None:
         """Add channel to user's subscribed channels"""
         current_channels: set = self.retrieve_channels(username)
 
@@ -218,7 +217,7 @@ class DatabaseManager:
             {"channels": channels_str, "username": username},
         )
 
-    def remove_channel(self, username: str, channel: str):
+    def remove_channel(self, username: str, channel: str) -> None:
         """Remove channel from user's subscribed channels"""
         current_channels: set = self.retrieve_channels(username)
 
@@ -231,7 +230,7 @@ class DatabaseManager:
             {"channels": channels_str, "username": username},
         )
 
-    def update_query(self, query: str, values: dict):
+    def update_query(self, query: str, values: dict) -> None:
         """Function to run an UPDATE query"""
         with self.get_cursor() as cur:
             try:
@@ -241,17 +240,17 @@ class DatabaseManager:
                 cur.connection.rollback()
                 print(f"Error in update_query({query=}, {values=}): \n{e}")
 
-    def list_tables(self):
+    def list_tables(self) -> list:
         query = "SELECT name FROM sqlite_master WHERE type=:name;"
         values = {"name": "table"}
-        tables = self.select_query(query, values)
+        tables: list = self.select_query(query, values)
         return tables
 
-    def create_db_filepath(self):
+    def create_db_filepath(self) -> path:
         base_dir = path.dirname(path.abspath(__file__))
         return path.join(base_dir, DB_NAME)
 
-    def read_db_filepath(self):
+    def read_db_filepath(self) -> str:
         with self.get_connection() as conn:
             database_path = conn.execute("PRAGMA database_list").fetchone()[2]
             return f"Database file path: {database_path}"
@@ -295,10 +294,11 @@ class DatabaseManager:
         return datetime.datetime.fromisoformat(val)  # .decode()
 
 
-# Usage
+# Create instance to be imported
 db = DatabaseManager()
-db.init_database()
-db.retrieve_message_history(["welcome", "hello"])
+
+# Usage
+# db.retrieve_message_history(["welcome", "hello"])
 # print(f"{db.list_tables()=}")
 # print(db.read_db_filepath())
 # print(db.retrieve_channels("username_1"))
