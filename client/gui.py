@@ -28,8 +28,9 @@ LOGIN_ENDPOINT = "/auth/token"
 CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
 WINDOW_WIDTH = 375
-WINDOW_HEIGHT = 300
+WINDOW_HEIGHT = 320
 CHANNEL_WIDTH = 75
+MAX_CHANNELS = 10
 
 # Format for text message as received:
 # {
@@ -91,7 +92,7 @@ class Chattr:
         # Session attributes
         self.username: tk.StringVar = tk.StringVar(value="username")
         self.password: tk.StringVar = tk.StringVar(value="password")
-        self.channels: list | None = None
+        self.channels: list = []
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
         self.auth_token: dict[str, str] = {}
@@ -382,10 +383,10 @@ class Chattr:
                     # "messages" can contain event information such as channel subscriptions, or message data. This filters based on keys present.
                     event_type = message.get("event")
                     if event_type == "channel_subscriptions":
-                        self.channels = message.get("data")
-                        if self.channels is not None:
-                            self.channels.sort()
-                        self.build_channel_tabs()
+                        new_channels = message.get("data")
+                        if isinstance(new_channels, list):
+                            self.channels.extend(new_channels)
+                            self.build_channel_tabs(new_channels)
                     elif event_type == "message history":
                         for individual_message in message.get("data", []):
                             self.process_received_message(individual_message)
@@ -457,7 +458,7 @@ class Chattr:
         add_leave_context_menu = tk.Menu(self.nb, tearoff=0)
         add_leave_context_menu.add_command(
             label="Add new channel",
-            command=lambda: self.add_new_channel(),
+            command=lambda: self.add_channel_popup(),  # .add_new_channel(),
         )
         add_leave_context_menu.add_command(
             label="Leave Channel", command=lambda: self.leave_channel()
@@ -472,17 +473,28 @@ class Chattr:
         )
         self.nb.add_context_menu: tk.Menu = add_context_menu
 
+        # Create leave-only context menu
+        leave_context_menu = tk.Menu(self.nb, tearoff=0)
+        leave_context_menu.add_command(
+            label="Leave Channel", command=lambda: self.leave_channel()
+        )
+        self.nb.leave_context: tk.Menu = leave_context_menu
+
     def on_tab_right_click(self, event, channel_name: str, tab_index: int):
         """Handle the right-click action for chosen tab"""
         self.context_menu_target_channel = {
             "channel_name": channel_name,
             "tab_index": tab_index,
         }
-        self.nb.add_leave_context.post(event.x_root, event.y_root)
+        if len(self.channels) < MAX_CHANNELS:
+            self.nb.add_leave_context.post(event.x_root, event.y_root)
+        else:
+            self.nb.leave_context.post(event.x_root, event.y_root)
 
     def on_notebook_right_click(self, event):
         """Handle the right-click action for the notebook background (outside of tabs)"""
-        self.nb.add_context_menu.post(event.x_root, event.y_root)
+        if len(self.channels) < MAX_CHANNELS:
+            self.nb.add_context_menu.post(event.x_root, event.y_root)
 
     def leave_channel(self):
         channel_name = self.context_menu_target_channel.get("channel_name")
@@ -539,7 +551,6 @@ class Chattr:
 
     def add_new_channel(self, event):
         """Create the add channel message and send to the server"""
-        print("add_new_channel()")
 
         channel_name = self.popup["channel_name_entry"].get()
 
@@ -552,8 +563,10 @@ class Chattr:
                 "event": "add_channel",
                 "channel": channel_name.strip(),
             }
-            print(f"{formatted_message=}")
+            # Close the input popup window
+            self.popup["window"].destroy()
 
+            # Push the send_message task to async thread
             asyncio.run_coroutine_threadsafe(
                 self.client_websocket.send_message(formatted_message), self.loop
             )
@@ -565,10 +578,9 @@ class Chattr:
         else:
             self.active_channel = None
 
-    def build_channel_tabs(self):
-        if self.channels:
-            for channel_name in self.channels:
-                self.add_channel(channel_name)
+    def build_channel_tabs(self, channels: list):
+        for channel_name in channels:
+            self.add_channel(channel_name)
 
     def add_channel(self, channel_name):
         # Create a text field for the new channel
