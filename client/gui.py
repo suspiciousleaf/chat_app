@@ -97,7 +97,7 @@ class Chattr:
         self.auth_token: dict[str, str] = {}
         self.client_websocket: MyWebSocket | None = None
         self.server_status: tk.StringVar = tk.StringVar(value="checking...")
-        self.is_running = True
+        self.connection_active: bool = False
 
         # Create background async event loop to handle IO operations and move to its own thread
         self.loop = asyncio.new_event_loop()
@@ -231,12 +231,16 @@ class Chattr:
             self.create_chat()
 
     def process_login(self):
+        self.connection_active = True
         self.client_websocket = MyWebSocket(self.auth_token)
         asyncio.run_coroutine_threadsafe(self.message_listener_init(), self.loop)
 
     def process_logout(self):
-        # TODO Log in screen shifts left when this is called
+        self.connection_active = False
         self.create_startup_screen()
+        self.loop.call_soon_threadsafe(
+            lambda: asyncio.create_task(self.close_websocket_connection())
+        )
 
     def create_chat(self):
         """Creates the main chat window if login is successfull"""
@@ -356,30 +360,6 @@ class Chattr:
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {e}")
 
-    def delete_buttons(self):
-        """Delete all Button elements"""
-        for button in self.buttons:
-            self.buttons[button].grid_forget()
-        self.buttons.clear()
-
-    def delete_entries(self):
-        """Delete all Entry elements"""
-        for entry in self.entries:
-            self.entries[entry].grid_forget()
-        self.entries.clear()
-
-    def delete_labels(self):
-        """Delete all Label elements"""
-        for label in self.labels:
-            self.labels[label].grid_forget()
-        self.labels.clear()
-
-    def delete_widgets(self):
-        """Delete all elements on the screen, excluding Frame"""
-        self.delete_labels()
-        self.delete_buttons()
-        self.delete_entries()
-
     def run_async_loop(self):
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
@@ -392,7 +372,7 @@ class Chattr:
         await self.client_websocket.connect()
 
     async def listen_for_messages(self):
-        while self.is_running:
+        while self.connection_active:
             try:
                 message_str = await asyncio.wait_for(
                     self.client_websocket.websocket.recv(), timeout=1.0
@@ -417,7 +397,7 @@ class Chattr:
                 break
             except Exception as e:
                 print(f"Error receiving message: {e}")
-                if not self.is_running:
+                if not self.connection_active:
                     break
                 await asyncio.sleep(5)
 
@@ -772,7 +752,7 @@ class Chattr:
 
     def on_closing(self):
         """Handle the closing event of the application."""
-        self.is_running = False
+        self.connection_active = False
 
         if self.loop.is_running():
             self.loop.call_soon_threadsafe(lambda: asyncio.create_task(self.shutdown()))
@@ -785,11 +765,15 @@ class Chattr:
         else:
             self.window.destroy()
 
-    async def shutdown(self):
-        """Coroutine to handle the shutdown process."""
+    async def close_websocket_connection(self):
         # Close the websocket connection if it exists
         if self.client_websocket:
             await self.client_websocket.close()
+
+    async def shutdown(self):
+        """Coroutine to handle the shutdown process."""
+
+        await self.close_websocket_connection()
 
         # Gather all tasks in the background event loop (excluding this one), and cancel them
         tasks = [
@@ -806,7 +790,7 @@ class Chattr:
         try:
             self.window.mainloop()
         finally:
-            if self.is_running:
+            if self.connection_active:
                 self.on_closing()
             self.thread.join()
 
