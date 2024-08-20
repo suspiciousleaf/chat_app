@@ -25,7 +25,30 @@ from server.services.connection_manager import ConnectionManager
 
 db = DatabaseManager()
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    loop = asyncio.get_event_loop()
+    print(f"Current event loop: {type(loop).__name__}")
+
+    yield
+
+    # Shutdown logic
+    if connection_man.listener_task:
+        connection_man.listener_task.cancel()
+        try:
+            await connection_man.listener_task
+        except asyncio.CancelledError:
+            pass
+    # Close all active WebSocket connections
+    for connection in connection_man.active_connections.values():
+        await connection["ws"].close()
+    connection_man.active_connections.clear()
+    db.close_all()
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth_router)
 
@@ -83,7 +106,6 @@ async def websocket_endpoint(websocket: WebSocket):
     """Websocket endpoint to send and receive messages"""
     try:
         auth_header = websocket.headers.get("Authorization")
-        print(f"Received auth header: {auth_header}")
         if not auth_header or not auth_header.startswith("Bearer "):
             print("Invalid or missing Authorization header")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -127,24 +149,3 @@ async def websocket_endpoint(websocket: WebSocket):
         await connection_man.disconnect(active_user.username)
     except asyncio.CancelledError:
         await connection_man.disconnect(active_user.username)
-
-
-@app.on_event("startup")
-async def startup_event():
-    loop = asyncio.get_event_loop()
-    print(f"Current event loop: {type(loop).__name__}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    if connection_man.listener_task:
-        connection_man.listener_task.cancel()
-        try:
-            await connection_man.listener_task
-        except asyncio.CancelledError:
-            pass
-    # Close all active WebSocket connections
-    for connection in connection_man.active_connections.values():
-        await connection["ws"].close()
-    connection_man.active_connections.clear()
-    db.close_all()
