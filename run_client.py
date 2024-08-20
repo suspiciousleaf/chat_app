@@ -6,7 +6,6 @@ if __name__ == "__main__":
 
 #! Client
 # TODO Make buttons remain still between screens during login
-# TODO Store channel message text in a dict so it can persist on channel updates when tabs are destroyed and rebuilt
 # TODO channel tab width changes with longer channel names, 10 letters eg wwwwwwwwww
 
 #! Auth
@@ -15,7 +14,6 @@ if __name__ == "__main__":
 
 #! Server
 # TODO Check ws login event loop thread logic and behaviour
-# TODO Auth is using its own instance of db_manager, refactor to pass through the main instance
 # TODO check disconnect logic
 
 #! Database
@@ -32,3 +30,5 @@ if __name__ == "__main__":
 
 #! Other
 # TODO Maybe open a PR to fix the issue of .index returning "" and causing TclError? Should return -1 if clicking outside of a tab, not through an exception
+
+#! Add password salting logic then deploy server to VPS
