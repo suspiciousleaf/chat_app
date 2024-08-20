@@ -6,10 +6,8 @@ from jose import JWTError, ExpiredSignatureError, jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 from os import getenv
-import time
 
-# from db_module.db_utilities import retrieve_existing_accounts
-from server.services.db_module.db_manager import DatabaseManager
+from server.services.db_module.db_manager import db
 
 
 load_dotenv()
@@ -19,9 +17,6 @@ ALGORITHM = getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 600
 ROUTER_PREFIX = "/auth"
 CRYPTCONTEXT_SCHEME = getenv("CRYPTCONTEXT_SCHEME")
-
-
-db = DatabaseManager()
 
 
 class Token(BaseModel):
@@ -47,24 +42,23 @@ pwd_context = CryptContext(schemes=[CRYPTCONTEXT_SCHEME], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{ROUTER_PREFIX}/token")
 
 
-def verify_password(plaintext_password, password_hashed):
+def verify_password(plaintext_password: str, password_hashed: str):
     return pwd_context.verify(plaintext_password, password_hashed)
 
 
-def get_password_hash(plaintext_password):
+def get_password_hash(plaintext_password: str):
     return pwd_context.hash(plaintext_password)
 
 
 def get_user(username: str):
-    # accounts = retrieve_existing_accounts()
-    accounts = db.retrieve_existing_accounts()
+    accounts: dict = db.retrieve_existing_accounts()
     if username in accounts:
         user_data = accounts[username]
         return UserInDB(**user_data)
 
 
 def authenticate_user(username: str, password: str):
-    user = get_user(username)
+    user: UserInDB = get_user(username)
     if not user:
         return False
     if not verify_password(password, user.password_hashed):
@@ -74,7 +68,7 @@ def authenticate_user(username: str, password: str):
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
+    to_encode: dict = data.copy()
 
     # Expiry is compared to UTC time on validation, so it must be set to UTC + delta
     if expires_delta:
@@ -89,7 +83,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
     """_summary_
 
     Args:
@@ -110,12 +104,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        print(f"{token=}")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print(f"{payload=}")
 
         username: str = payload.get("sub")
-        print(f"{username=}")
         if username is None:
             raise credential_exception
 
@@ -131,7 +122,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise credential_exception
 
-    user = get_user(username=token_data.username)
+    user: UserInDB = get_user(username=token_data.username)
 
     if user is None:
         raise credential_exception
@@ -139,7 +130,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-async def get_current_active_user(current_user: UserInDB = Depends(get_current_user)):
+async def get_current_active_user(
+    current_user: UserInDB = Depends(get_current_user),
+) -> UserInDB:
     """_summary_
 
     Args:
@@ -163,8 +156,10 @@ router = APIRouter(prefix=ROUTER_PREFIX)
 
 
 @router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+) -> dict:
+    user: UserInDB = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -176,25 +171,14 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
-    print(f"token issued for {ACCESS_TOKEN_EXPIRE_MINUTES} minutes")
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/")
-def ping():
+def ping() -> str:
     return "Auth router is running"
 
 
 @router.get("/secure")
-def ping_secure(current_user: User = Depends(get_current_active_user)):
+def ping_secure(current_user: User = Depends(get_current_active_user)) -> str:
     return "Secure auth router is running"
-
-
-@router.get("/users/me", response_model=User)
-async def read_users_me(current_user: User = Depends(get_current_active_user)):
-    return current_user
-
-
-@router.get("/users/me/items")
-async def read_own_items(current_user: User = Depends(get_current_active_user)):
-    return [{"item_id": 1, "owner": current_user}]
