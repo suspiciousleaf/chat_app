@@ -4,7 +4,6 @@ from fastapi import (
     WebSocketDisconnect,
     HTTPException,
     status,
-    Depends,
 )
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
@@ -17,11 +16,15 @@ import asyncio
 # from dotenv import load_dotenv
 from pprint import pprint
 
-from server.routers.auth import router as auth_router
-from server.routers.auth import User, get_current_active_user, get_current_user
+# from server.routers.auth import router as auth_router
+# from server.routers.auth import get_current_active_user, get_current_user
+from routers.auth import router as auth_router
+from routers.auth import get_current_active_user, get_current_user
 
-from server.services.db_module.db_manager import db
-from server.services.connection_manager import ConnectionManager
+# from server.services.db_manager import db
+# from server.services.connection_manager import ConnectionManager
+from services.db_manager import db
+from services.connection_manager import ConnectionManager
 
 
 @asynccontextmanager

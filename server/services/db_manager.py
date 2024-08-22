@@ -28,7 +28,7 @@ class DatabaseConnectionError(Exception):
 class DatabaseManager:
     def __init__(self):
         self.DB_NAME = DB_NAME
-        # This is used to ensure a constant filepath for the database file inside the db_module directory, otherwise it changes based on the cwd
+        # This is used to ensure a constant filepath for the database file inside the services directory, otherwise it changes based on the cwd
         self.DB_FILEPATH = self.create_db_filepath()
         self._local = local()
         self.init_database()
@@ -248,7 +248,7 @@ class DatabaseManager:
 
     def create_db_filepath(self) -> path:
         base_dir = path.dirname(path.abspath(__file__))
-        return path.join(base_dir, DB_NAME)
+        return path.join(base_dir, "services/db_data", DB_NAME)
 
     def read_db_filepath(self) -> str:
         with self.get_connection() as conn:

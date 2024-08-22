@@ -7,7 +7,8 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 from os import getenv
 
-from server.services.db_module.db_manager import db
+# from server.services.db_manager import db
+from services.db_manager import db
 
 
 load_dotenv()

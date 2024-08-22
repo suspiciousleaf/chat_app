@@ -8,8 +8,10 @@ from redis.exceptions import ConnectionError, TimeoutError
 from fastapi import WebSocket
 from dotenv import load_dotenv
 
-from server.services.redis_manager import RedisManager
-from server.services.db_module.db_manager import DatabaseManager
+# from server.services.redis_manager import RedisManager
+# from server.services.db_manager import DatabaseManager
+from services.redis_manager import RedisManager
+from services.db_manager import DatabaseManager
 
 
 env_path = Path(".") / ".env"
