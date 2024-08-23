@@ -1,4 +1,5 @@
 import datetime
+from os import getenv
 import tkinter as tk
 from tkinter import ttk, Event
 import asyncio
@@ -8,6 +9,8 @@ from json import JSONDecodeError
 import requests
 import time
 from _tkinter import TclError
+
+from dotenv import load_dotenv
 
 from client.services.client_websocket import MyWebSocket
 
@@ -23,7 +26,9 @@ LIGHT_BLUE = "#CCEDFF"
 LIGHT_GRAY = "#F5F5F5"
 LABEL_COLOUR = "#25265E"
 
-URL = "http://127.0.0.1:8000"
+# URL = "http://127.0.0.1:8000"
+load_dotenv()
+URL = getenv("URL")
 LOGIN_ENDPOINT = "/auth/token"
 CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
@@ -31,6 +36,8 @@ WINDOW_WIDTH = 375
 WINDOW_HEIGHT = 320
 CHANNEL_WIDTH = 75
 MAX_CHANNELS = 10
+
+print(URL)
 
 # Format for text message as received:
 # {
@@ -69,7 +76,7 @@ class Chattr:
         self.height: int = WINDOW_HEIGHT
         self.channel_width = CHANNEL_WIDTH
         self.window.geometry(f"{self.width}x{self.height}")
-        self.window.minsize(self.channel_width + 300, 300)
+        self.window.minsize(self.channel_width + 300, self.height)
         self.window.title("Chattr")
         self.buttons: dict[str, tk.Button] = {}
         self.labels: dict[str, tk.Label] = {}
