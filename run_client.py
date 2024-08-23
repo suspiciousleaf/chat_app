@@ -10,15 +10,12 @@ if __name__ == "__main__":
 
 #! Auth
 # TODO Verify token expiry is working as expected
-# TODO Add password salting logic
 
 #! Server
 # TODO Check ws login event loop thread logic and behaviour
 # TODO check disconnect logic
 
 #! Database
-# TODO Add password salt to database
-# TODO Make db_manager async
 
 #! General
 # TODO Add proper logging
@@ -31,4 +28,5 @@ if __name__ == "__main__":
 #! Other
 # TODO Maybe open a PR to fix the issue of .index returning "" and causing TclError? Should return -1 if clicking outside of a tab, not through an exception
 
-#! Add password salting logic then deploy server to VPS
+#! Hosted
+# TODO Server is hosted, health check returns good, log in auth works but notebook doesn't load. Read database file to check channel subscriptions etc, and also check logs in container to see what the error is.
