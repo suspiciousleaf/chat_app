@@ -10,8 +10,7 @@ services:
       - ./src:/app # Mount the current directory to /app in the container
       - ./db_data:/app/services/db_data # Mount the db_data directory on the host to the services directory in the container
 
-    ports:
-      - "127.0.0.1:7999:7999"
+    network_mode: "host" # Bind the local network of the container to the local network of the VPS
     command: uvicorn main_server:app --host 0.0.0.0 --port 7999
     # command: tail -f /dev/null # Keep the container running with no process
 
