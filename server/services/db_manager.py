@@ -248,7 +248,7 @@ class DatabaseManager:
 
     def create_db_filepath(self) -> path:
         base_dir = path.dirname(path.abspath(__file__))
-        return path.join(base_dir, "services/db_data", DB_NAME)
+        return path.join(base_dir, "db_data", DB_NAME)
 
     def read_db_filepath(self) -> str:
         with self.get_connection() as conn:
