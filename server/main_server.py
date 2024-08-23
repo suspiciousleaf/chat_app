@@ -61,7 +61,7 @@ app.include_router(auth_router)
 
 # Endpoint to get server health
 @app.get("/", status_code=status.HTTP_200_OK)
-async def ping():
+async def server_health():
     """Verify connection to redis and database and return server health"""
     db_status = await connection_man.db.verify_connection_and_tables()
     redis_status = await connection_man.redis_man.verify_connection()
@@ -74,6 +74,13 @@ async def ping():
     if not redis_status["status"]:
         error_details.append(redis_status["details"])
     return {"status": ", ".join(error_details)}
+
+
+# Endpoint to ping server
+@app.get("/ping", status_code=status.HTTP_200_OK)
+async def ping():
+    """Get a static response from server"""
+    return {"status": "alive"}
 
 
 @app.get("/tables")
