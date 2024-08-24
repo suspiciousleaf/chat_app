@@ -7,6 +7,8 @@ if __name__ == "__main__":
 #! Client
 # TODO Make buttons remain still between screens during login
 # TODO channel tab width changes with longer channel names, 10 letters eg wwwwwwwwww
+# TODO add full channel name banner to top of client
+# TODO Remove channel name truncation and tab select logic
 
 #! Auth
 # TODO Verify token expiry is working as expected
