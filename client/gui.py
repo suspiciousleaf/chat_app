@@ -11,7 +11,6 @@ import time
 from _tkinter import TclError
 
 from dotenv import load_dotenv
-
 from client.services.client_websocket import MyWebSocket
 
 LARGE_FONT_STYLE = ("Arial", 40, "bold")
@@ -36,8 +35,6 @@ WINDOW_WIDTH = 375
 WINDOW_HEIGHT = 320
 CHANNEL_WIDTH = 75
 MAX_CHANNELS = 10
-
-print(URL)
 
 # Format for text message as received:
 # {
@@ -86,7 +83,6 @@ class Chattr:
         self.popup: dict = {}
         self.context_menu_target_channel: dict = {}
         self.tab_to_channel = {}  # Maps tab widget names to full channel names
-
         self.nb: ttk.Notebook | None = None
         self.nb_tabs: dict = {}
         self.active_channel: str | None = None
@@ -193,8 +189,9 @@ class Chattr:
         self.entries["username_entry"] = username_entry
         username_entry.grid(row=0, column=0)
         username_entry["textvariable"] = self.username
-        # TODO Change or remove this binding
-        username_entry.bind("<Key-Return>", self.print_contents)
+        username_entry.bind(
+            "<Key-Return>", lambda event: self.entries["password_entry"].focus()
+        )
 
     def create_password_entry(self):
         """Create 'password' entry widget"""
@@ -209,7 +206,7 @@ class Chattr:
         self.entries["password_entry"] = password_entry
         password_entry.grid(row=1, column=0)
         password_entry["textvariable"] = self.password
-        password_entry.bind("<Key-Return>", self.print_contents)
+        password_entry.bind("<Key-Return>", lambda event: self.submit_login())
 
     def create_login_submit_button(self):
         """Create login 'submit' button"""
@@ -445,14 +442,20 @@ class Chattr:
             current_theme,
             {
                 "TNotebook.Tab": {
-                    "configure": {"background": "white", "padding": [4, 4]}
+                    "configure": {
+                        "background": "white",
+                        "padding": [4, 4],
+                        "anchor": "center",
+                        "width": 10,
+                        "font": "TkFixedFont",
+                    }
                 }
             },
         )
-        # self.style.configure("TNotebook", tabposition="wn")
+
         self.nb = ttk.Notebook(self.frames["chat"], style="lefttab.TNotebook")
         self.nb.grid(row=0, column=0, sticky="nsew")
-        # self.style.configure("TFrame", background="white")
+
         # Each time the active tab is changed, this virtual event will update self.active_channel
         self.nb.bind("<<NotebookTabChanged>>", self.set_active_channel)
         # Bind right-click event to the notebook tabs
@@ -465,7 +468,7 @@ class Chattr:
         add_leave_context_menu = tk.Menu(self.nb, tearoff=0)
         add_leave_context_menu.add_command(
             label="Add new channel",
-            command=lambda: self.add_channel_popup(),  # .add_new_channel(),
+            command=lambda: self.add_channel_popup(),
         )
         add_leave_context_menu.add_command(
             label="Leave Channel", command=lambda: self.leave_channel()
@@ -528,8 +531,6 @@ class Chattr:
         else:
             self.set_active_channel()
 
-        # TODO: Notify the server that we've left this channel
-
     def leave_channel_server_notification(self, channel_name):
         """Create the leave channel message and send to the server"""
 
@@ -579,6 +580,9 @@ class Chattr:
             )
 
     def set_active_channel(self, event=None):
+        text_entry = self.entries.get("write_message")
+        if text_entry:
+            text_entry.focus()
         selected_tab = self.nb.select()
         if selected_tab:
             self.active_channel = self.tab_to_channel.get(str(selected_tab))
@@ -678,10 +682,6 @@ class Chattr:
 
         self.frames["chat"].grid_columnconfigure(0, weight=1)
         self.frames["chat"].grid_columnconfigure(1, weight=0)
-
-    def print_contents(self, event: Event):
-        entry_widget = event.widget
-        print("Hi. The current entry content is:", entry_widget.get())
 
     def delete_buttons(self):
         """Delete all buttons"""
