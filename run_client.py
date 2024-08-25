@@ -6,9 +6,7 @@ if __name__ == "__main__":
 
 #! Client
 # TODO Make buttons remain still between screens during login
-# TODO channel tab width changes with longer channel names, 10 letters eg wwwwwwwwww
 # TODO add full channel name banner to top of client
-# TODO Remove channel name truncation and tab select logic
 
 #! Auth
 # TODO Verify token expiry is working as expected
@@ -31,4 +29,3 @@ if __name__ == "__main__":
 # TODO Maybe open a PR to fix the issue of .index returning "" and causing TclError? Should return -1 if clicking outside of a tab, not through an exception
 
 #! Hosted
-# TODO Server is hosted, health check returns good, log in auth works but notebook doesn't load. Read database file to check channel subscriptions etc, and also check logs in container to see what the error is.
