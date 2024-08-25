@@ -16,7 +16,6 @@ WEBSOCKET_ENDPOINT = "/ws"
 class MyWebSocket:
     def __init__(self, auth_token: dict):
         self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"
-        print(self.websocket_url)
         self.websocket: WebSocketClientProtocol | None = None
         self.auth_token: dict = auth_token
 
