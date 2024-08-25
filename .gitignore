@@ -1,5 +1,5 @@
 # Custom
-*test*
+test*.py
 *.db
 docker_commands.txt
 
