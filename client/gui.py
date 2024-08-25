@@ -1,13 +1,13 @@
 import datetime
 from os import getenv
 import tkinter as tk
-from tkinter import ttk, Event
+from tkinter import ttk
 import asyncio
 import threading
 import json
 from json import JSONDecodeError
 import requests
-import time
+from re import split as re_split
 from _tkinter import TclError
 
 from dotenv import load_dotenv
@@ -18,6 +18,9 @@ SMALL_FONT_STYLE = ("Arial", 16)
 VERY_SMALL_FONT_STYLE = ("Arial", 12)
 DIGIT_FONT_STYLE = ("Arial", 24, "bold")
 DEFAULT_FONT_STYLE = ("Arial", 20)
+
+DEFAULT_USERNAME = "username_1"
+DEFAULT_PASSWORD = "password_1"
 
 OFF_WHITE = "#F8FAFF"
 WHITE = "#FFFFFF"
@@ -31,10 +34,10 @@ URL = getenv("URL")
 LOGIN_ENDPOINT = "/auth/token"
 CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
-WINDOW_WIDTH = 375
-WINDOW_HEIGHT = 320
+WINDOW_WIDTH = 450
+WINDOW_HEIGHT = 380
 CHANNEL_WIDTH = 75
-MAX_CHANNELS = 10
+MAX_CHANNELS = 12
 
 # Format for text message as received:
 # {
@@ -73,9 +76,9 @@ class Chattr:
         self.height: int = WINDOW_HEIGHT
         self.channel_width = CHANNEL_WIDTH
         self.window.geometry(f"{self.width}x{self.height}")
-        self.window.minsize(self.channel_width + 300, self.height)
+        self.window.minsize(self.width, self.height)
         self.window.title("Chattr")
-        self.buttons: dict[str, tk.Button] = {}
+        self.buttons: dict[str, ttk.Button] = {}
         self.labels: dict[str, tk.Label] = {}
         self.entries: dict[str, tk.Entry] = {}
         self.fields: dict = {}
@@ -88,13 +91,14 @@ class Chattr:
         self.active_channel: str | None = None
 
         style = ttk.Style()
-        style.configure("Login.TFrame", background="light red")
-        style.configure("Channel.TFrame", background="light blue")
-        style.configure("Chat.TFrame", background="light green")
+        style.configure("Login.TFrame")
+        style.configure("Channel.TFrame")
+        style.configure("Chat.TFrame")
+        style.configure("TButton", font="TkFixedFont")
 
         # Session attributes
-        self.username: tk.StringVar = tk.StringVar(value="username")
-        self.password: tk.StringVar = tk.StringVar(value="password")
+        self.username: tk.StringVar = tk.StringVar(value=DEFAULT_USERNAME)
+        self.password: tk.StringVar = tk.StringVar(value=DEFAULT_PASSWORD)
         self.channels: list = []
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
@@ -139,8 +143,6 @@ class Chattr:
 
     def create_login_button(self):
         """Create the "Login" button"""
-        self.username.set("username_1")
-        self.password.set("password_1")
         login_button = ttk.Button(
             self.frames["login"],
             text="Log in",
@@ -190,8 +192,17 @@ class Chattr:
         username_entry.grid(row=0, column=0)
         username_entry["textvariable"] = self.username
         username_entry.bind(
-            "<Key-Return>", lambda event: self.entries["password_entry"].focus()
+            "<Key-Return>", lambda event: self.username_entry_return_bind_logic()
         )
+        # Put the cursor in the username entry and move to the end
+        username_entry.focus()
+        username_entry.icursor(tk.END)
+
+    def username_entry_return_bind_logic(self):
+        if self.entries["password_entry"].get():
+            self.submit_login()
+        else:
+            self.entries["password_entry"].focus()
 
     def create_password_entry(self):
         """Create 'password' entry widget"""
@@ -408,13 +419,19 @@ class Chattr:
 
     def process_received_message(self, message: dict):
         """Format the received message and send it to the method to update the display"""
+        message_username = message.get("username")
+        # If you sent the message, display sernder as "You", otherwise sender's username
+        if message_username == self.username.get():
+            message_username = "You"
         # Generate a string showing the message sent timestamp in HH:MM format for the local timezone of the client
         message_timestamp = (
             datetime.datetime.fromisoformat(message["sent_at"])
             .astimezone()
             .strftime("%H:%M")
         )
-        display_text = f"{message_timestamp}: {message['content']}\n"
+        display_text = (
+            f"{message_timestamp}, {message_username}: {message['content']}\n"
+        )
         # Use after() method to safely update GUI from a different thread
         self.window.after(0, self.update_text_field, message["channel"], display_text)
 
@@ -590,8 +607,18 @@ class Chattr:
             self.active_channel = None
 
     def build_channel_tabs(self, channels: list):
+        if isinstance(channels, list):
+            channels.sort(key=self.natural_sort)
         for channel_name in channels:
             self.add_channel(channel_name)
+
+    @staticmethod
+    def natural_sort(s):
+        """Split a string containing letters and numbers into substrings so a list of these strings can be sorted as a human would, not as strings normally would. i.e. [str1, str2, str10]"""
+        return [
+            int(text) if text.isdigit() else text.lower()
+            for text in re_split(r"(\d+)", s)
+        ]
 
     def add_channel(self, channel_name):
         # Create a text field for the new channel
@@ -733,7 +760,6 @@ class Chattr:
     def create_chat_frame(self):
         """Create the chat Frame element"""
         frame = ttk.Frame(self.frames["container"])
-        # frame.grid(row=0, column=1, sticky="nsew")
         frame.grid(row=0, column=0, sticky="nsew")
         frame["style"] = "Chat.TFrame"
         self.frames["chat"] = frame
