@@ -29,3 +29,10 @@ if __name__ == "__main__":
 # TODO Maybe open a PR to fix the issue of .index returning "" and causing TclError? Should return -1 if clicking outside of a tab, not through an exception
 
 #! Hosted
+
+#! Load testing
+# TODO Run message listener in async loop
+# TODO Change channels frm hardcoded to dynamic
+# TODO Add methods to join and leave groups
+# TODO Create json of 100 user accounts for concurrent testing
+#? Create endpoint to delete account, so accounts can be created, used, and deleted dynamically during testing

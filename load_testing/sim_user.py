@@ -16,8 +16,7 @@ URL = getenv("URL")
 WS_URL = getenv("WS_URL")
 LOGIN_ENDPOINT = "/auth/token"
 
-MAX_MESSAGE_LENGTH = 30
-MESSAGES_TO_SEND = 10
+MAX_MESSAGE_LENGTH = 20
 
 sample_words = [
     "apple",
@@ -136,7 +135,13 @@ class User:
         self.password: str = password
         self.messages_to_send: int = messages_to_send
         self.connection_active: bool = False
-        self.channels: list = []
+        self.channels: list = [
+            "welcome",
+            "hello",
+            "Gatito",
+            "Ravioli",
+            "mystery channel",
+        ]
         self.bearer_token: dict = self.get_auth_token()
         self.client_websocket: MyWebSocket = self.open_websocket()
         self.start_activity()
@@ -226,6 +231,3 @@ class User:
             print(f"Could not decode message: {message}")
         except Exception as e:
             print(f"Unknown error occurred when decoding message: {e}")
-
-
-User("username_1", "password_1", MESSAGES_TO_SEND)
