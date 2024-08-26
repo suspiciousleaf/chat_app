@@ -9,6 +9,7 @@ from os import getenv
 from dotenv import load_dotenv
 
 from client.services.client_websocket import MyWebSocket
+from load_testing.sample_words import sample_words
 
 load_dotenv()
 
@@ -16,111 +17,7 @@ URL = getenv("URL")
 WS_URL = getenv("WS_URL")
 LOGIN_ENDPOINT = "/auth/token"
 
-MAX_MESSAGE_LENGTH = 20
-
-sample_words = [
-    "apple",
-    "book",
-    "car",
-    "dream",
-    "eagle",
-    "forest",
-    "garden",
-    "hill",
-    "ice",
-    "jungle",
-    "key",
-    "lamp",
-    "mountain",
-    "night",
-    "ocean",
-    "pearl",
-    "quartz",
-    "river",
-    "stone",
-    "tree",
-    "umbrella",
-    "valley",
-    "wind",
-    "xylophone",
-    "yarn",
-    "zebra",
-    "anchor",
-    "breeze",
-    "candle",
-    "dance",
-    "echo",
-    "feather",
-    "globe",
-    "horizon",
-    "island",
-    "jewel",
-    "kettle",
-    "lighthouse",
-    "moon",
-    "nest",
-    "owl",
-    "puzzle",
-    "quilt",
-    "rain",
-    "shadow",
-    "tiger",
-    "unicorn",
-    "vase",
-    "whale",
-    "x-ray",
-    "yellow",
-    "zigzag",
-    "arrow",
-    "bottle",
-    "cloud",
-    "dust",
-    "energy",
-    "fire",
-    "grape",
-    "hammer",
-    "ink",
-    "jacket",
-    "kite",
-    "lemon",
-    "mirror",
-    "nut",
-    "orange",
-    "pencil",
-    "quill",
-    "rose",
-    "star",
-    "tunnel",
-    "universe",
-    "violet",
-    "wolf",
-    "xenon",
-    "yacht",
-    "zephyr",
-    "bamboo",
-    "circle",
-    "dragon",
-    "echoes",
-    "flame",
-    "grass",
-    "honey",
-    "isle",
-    "jade",
-    "knot",
-    "leaf",
-    "mist",
-    "nebula",
-    "octopus",
-    "pine",
-    "queen",
-    "rope",
-    "snow",
-    "thorn",
-    "utopia",
-    "volcano",
-    "whisper",
-    "xenon",
-]
+MAX_MESSAGE_LENGTH = 10
 
 
 class WebsocketConnectionError(Exception):
@@ -130,18 +27,15 @@ class WebsocketConnectionError(Exception):
 
 
 class User:
-    def __init__(self, username: str, password: str, messages_to_send: int):
+    def __init__(self, username: str, password: str, actions: int, test_channels: list):
         self.username: str = username
         self.password: str = password
-        self.messages_to_send: int = messages_to_send
+        self.actions: int = actions
         self.connection_active: bool = False
-        self.channels: list = [
-            "welcome",
-            "hello",
-            "Gatito",
-            "Ravioli",
-            "mystery channel",
-        ]
+        self.test_channels: list = test_channels
+        self.channels: list = ["welcome"] + random.sample(
+            self.test_channels, random.randint(0, 11)
+        )
         self.bearer_token: dict = self.get_auth_token()
         self.client_websocket: MyWebSocket = self.open_websocket()
         self.start_activity()
@@ -171,16 +65,49 @@ class User:
         except Exception as e:
             print(f"Auth token request failed: {e}")
 
-    def join_group(self):
-        pass
+    def join_channel(self, channel_name):
+        """Join the specified channel"""
+        formatted_message = {
+            "event": "add_channel",
+            "channel": channel_name,
+        }
+        print(formatted_message)
+        # self.client_websocket.send_message(formatted_message)
+        self.channels.append(channel_name)
 
-    def leave_group(self):
-        pass
+    def leave_channel(self, channel_name):
+        """Leave the specified channel"""
+
+        formatted_message = {"event": "leave_channel", "channel": channel_name}
+        print(formatted_message)
+        # self.client_websocket.send_message(formatted_message)
+        self.channels.remove(channel_name)
+        print(f"{self.channels=}")
 
     def start_activity(self):
-        for _ in range(self.messages_to_send):
+        for _ in range(self.actions):
+            self.choose_action()
+            time.sleep((random.randint(1, 20)) / 10)
+
+    def choose_action(self):
+        """Pick which action to perform"""
+        random_value = random.randint(0, 99)
+        if random_value >= 6:
             self.send_message()
-            time.sleep(1)
+        elif 5 >= random_value >= 3 and len(self.channels) <= 11:
+            print(f"add channel to {self.channels=}")
+            channel_name = random.choice(
+                [
+                    channel
+                    for channel in self.test_channels
+                    if channel not in self.channels
+                ]
+            )
+            self.join_channel(channel_name)
+        elif len(self.channels) >= 4:
+            channel_name = random.choice(self.channels)
+            if channel_name != "welcome":
+                self.leave_channel(channel_name)
 
     # async def send_message(self):
     def send_message(self):
