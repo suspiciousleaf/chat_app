@@ -1,5 +1,5 @@
-from load_testing.sim_user import User
+from load_testing.load_tester import LoadTester
 
-MESSAGES_TO_SEND = 10
+NUMBER_OF_TEST_ACCOUNTS = 1
 
-User("username_1", "password_1", MESSAGES_TO_SEND)
+load_tester = LoadTester(NUMBER_OF_TEST_ACCOUNTS)
