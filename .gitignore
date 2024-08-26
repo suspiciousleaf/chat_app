@@ -2,6 +2,7 @@
 test*.py
 *.db
 docker_commands.txt
+accounts.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
