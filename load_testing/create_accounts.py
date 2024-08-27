@@ -15,7 +15,7 @@ WS_URL = getenv("WS_URL")
 LOGIN_ENDPOINT = "/auth/token"
 CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
-# accounts = {username:{"password": password}}
+# accounts = {username:password}
 
 
 def create_accounts_local(num: int):
@@ -23,12 +23,10 @@ def create_accounts_local(num: int):
     accounts: dict = {}
     for word in sample_words:
         for i in range(num):
-            account = {
-                "username": f"{word}{i}",
-                "password": f"{word}{i}",
-            }
-
-            accounts[account["username"]] = {"password": account["password"]}
+            account_string = f"{word}{i}"
+            if len(account_string) < 6:
+                account_string = f"{word.title()}{account_string.title()}"
+            accounts[account_string] = account_string
 
     with open("load_testing/accounts.json", "w") as f:
         f.write(json.dumps(accounts))
@@ -52,9 +50,12 @@ def create_accounts_on_server_from_local_file():
     i = 0
     for username, password in accounts.items():
         try:
-            create_account_on_server(username, password["password"])
+            create_account_on_server(username, password)
         except Exception as e:
-            print(f"{username=}, {password['password']=}, {e}")
+            print(f"{username=}, {password=}, {e}")
         i += 1
         if not i % 50:
-            print(f"Account {i} created")
+            print(f"Account {i} processed")
+
+
+# create_accounts_on_server_from_local_file()
