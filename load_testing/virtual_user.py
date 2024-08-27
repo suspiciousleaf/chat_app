@@ -27,27 +27,30 @@ class WebsocketConnectionError(Exception):
 
 
 class User:
-    def __init__(self, username: str, password: str, actions: int, test_channels: list):
+    def __init__(
+        self, loop, username: str, password: str, actions: int, test_channels: list
+    ):
+        self.loop = loop
         self.username: str = username
         self.password: str = password
         self.actions: int = actions
         self.connection_active: bool = False
         self.test_channels: list = test_channels
-        self.channels: list = ["welcome"] + random.sample(
-            self.test_channels, random.randint(0, 11)
-        )
+        self.channels: list = []
         self.bearer_token: dict = self.get_auth_token()
-        self.client_websocket: MyWebSocket = self.open_websocket()
-        self.start_activity()
+        self.client_websocket: MyWebSocket = MyWebSocket(self.bearer_token)
+        try:
+            self.leave_channel("welcome")
+        except:
+            pass
 
-    def open_websocket(self) -> MyWebSocket:
+    async def connect_websocket(self):
         """Open websocket connection"""
-        if self.bearer_token:
-            websocket: MyWebSocket = MyWebSocket(self.bearer_token)
+        try:
+            await self.client_websocket.connect()
             self.connection_active = True
-            print("Websocket connected!")
-            return websocket
-        else:
+            # print(f"{self.username}: Websocket connected!")
+        except:
             raise WebsocketConnectionError
 
     def get_auth_token(self) -> dict | None:
@@ -59,11 +62,11 @@ class User:
             }
             response = requests.post(f"{URL}{LOGIN_ENDPOINT}", data=payload)
             response.raise_for_status()
-            print("Auth token received!")
+            # print(f"{self.username}: Auth token received!")
             return response.json()
 
         except Exception as e:
-            print(f"Auth token request failed: {e}")
+            print(f"{self.username}: Auth token request failed: {e}")
 
     def join_channel(self, channel_name):
         """Join the specified channel"""
@@ -71,31 +74,42 @@ class User:
             "event": "add_channel",
             "channel": channel_name,
         }
-        print(formatted_message)
-        # self.client_websocket.send_message(formatted_message)
-        self.channels.append(channel_name)
+        # print(f"{self.username}: {formatted_message}")
+        self.send_message(formatted_message)
+        # self.channels.append(channel_name)
 
     def leave_channel(self, channel_name):
         """Leave the specified channel"""
 
         formatted_message = {"event": "leave_channel", "channel": channel_name}
-        print(formatted_message)
-        # self.client_websocket.send_message(formatted_message)
+        # print(f"{self.username}: {formatted_message}")
+        self.send_message(formatted_message)
         self.channels.remove(channel_name)
-        print(f"{self.channels=}")
+        # print(f"{self.username}: {self.channels=}")
 
     def start_activity(self):
+        """Begin the loop of performing random actions"""
         for _ in range(self.actions):
             self.choose_action()
             time.sleep((random.randint(1, 20)) / 10)
+        # Once the number of actions have been completed, close the connection
+        asyncio.run_coroutine_threadsafe(self.logout(), self.loop)
 
     def choose_action(self):
         """Pick which action to perform"""
+        # If user has no channel subscriptions, subscribe to a random selection
+        if not self.channels:
+            channels_to_add = random.sample(self.test_channels, random.randint(2, 6))
+            for channel in channels_to_add:
+                self.join_channel(channel)
+        # Generate a random number to decide the next action
         random_value = random.randint(0, 99)
+        # 94% chance to send a message
         if random_value >= 6:
-            self.send_message()
+            self.send_random_message()
+        # 3% chance to join a new channel
         elif 5 >= random_value >= 3 and len(self.channels) <= 11:
-            print(f"add channel to {self.channels=}")
+            # print(f"{self.username}: add channel to {self.channels=}")
             channel_name = random.choice(
                 [
                     channel
@@ -104,30 +118,36 @@ class User:
                 ]
             )
             self.join_channel(channel_name)
+        # 3% chance to leave a channel
         elif len(self.channels) >= 4:
             channel_name = random.choice(self.channels)
-            if channel_name != "welcome":
-                self.leave_channel(channel_name)
+            self.leave_channel(channel_name)
 
     # async def send_message(self):
-    def send_message(self):
+    def send_random_message(self):
         """Generate a random message and send it on a random channel"""
-        message = {
-            "event": "message",
-            "channel": random.choice(self.channels),
-            "content": " ".join(
-                random.sample(sample_words, random.randint(1, MAX_MESSAGE_LENGTH))
-            ),
-        }
-        print(message)
-        # await self.client_websocket.send_message(message)
+        if self.channels:
+            message = {
+                "event": "message",
+                "channel": random.choice(self.channels),
+                "content": " ".join(
+                    random.sample(sample_words, random.randint(1, MAX_MESSAGE_LENGTH))
+                ),
+            }
+            self.send_message(message)
 
-    def logout(self):
-        self.client_websocket.close()
+    def send_message(self, message):
+        asyncio.run_coroutine_threadsafe(
+            self.client_websocket.send_message(message), self.loop
+        )
+
+    async def logout(self):
+        await self.client_websocket.close()
         self.connection_active = False
 
     async def listen_for_messages(self):
         """Listen for incoming messages. Channel list will be updated, any other message will be ignored"""
+        await self.connect_websocket()
         while self.connection_active:
             try:
                 message_str = await asyncio.wait_for(
@@ -139,14 +159,17 @@ class User:
                     if event_type == "channel_subscriptions":
                         new_channels = message.get("data")
                         if isinstance(new_channels, list):
+                            # print(f"{self.username}: Before: {self.channels}")
+                            # print(f"{self.username}: Adding: {new_channels}")
                             self.channels.extend(new_channels)
+                            # print(f"{self.username}: After: {self.channels}")
 
             except asyncio.TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Error receiving message: {e}")
+                print(f"{self.username}: Error receiving message: {e}")
                 if not self.connection_active:
                     break
                 await asyncio.sleep(5)
@@ -155,6 +178,6 @@ class User:
         try:
             return json.loads(message)
         except json.JSONDecodeError:
-            print(f"Could not decode message: {message}")
+            print(f"{self.username}: Could not decode message: {message}")
         except Exception as e:
-            print(f"Unknown error occurred when decoding message: {e}")
+            print(f"{self.username}: Unknown error occurred when decoding message: {e}")
