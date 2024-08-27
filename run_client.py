@@ -6,16 +6,18 @@ if __name__ == "__main__":
 
 #! Client
 # TODO Make buttons remain still between screens during login
-# TODO add full channel name banner to top of client
+# TODO add full channel name banner to top of client, or show full name on mouse hover
 
 #! Auth
 # TODO Verify token expiry is working as expected
 
 #! Server
+# TODO Read DDIA on mssage encoding and decoding, protobuff. Could send messages faster over ws
 # TODO Check ws login event loop thread logic and behaviour
 # TODO check disconnect logic
 
 #! Database
+# TODO Add indexes
 
 #! General
 # TODO Add proper logging
@@ -28,11 +30,12 @@ if __name__ == "__main__":
 #! Other
 # TODO Maybe open a PR to fix the issue of .index returning "" and causing TclError? Should return -1 if clicking outside of a tab, not through an exception
 
+
 #! Hosted
 
 #! Load testing
+# TODO Create log out and shut down logic after actions completed
 # TODO Run message listener in async loop
-# TODO Change channels frm hardcoded to dynamic
+# TODO Change channels from hardcoded to dynamic
 # TODO Add methods to join and leave groups
-# TODO Create json of 100 user accounts for concurrent testing
-#? Create endpoint to delete account, so accounts can be created, used, and deleted dynamically during testing
+# ? Create endpoint to delete account, so accounts can be created, used, and deleted dynamically during testing
