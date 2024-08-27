@@ -103,7 +103,7 @@ async def main():
 
     redis_batch_size = 100
 
-    # await run_redis_test(test_range, redis_batch_size)
+    await run_redis_test(test_range, redis_batch_size)
     run_in_memory_test(test_range)
     run_sqlite_test(test_range, ":memory:")
     run_sqlite_test(test_range, "perf_test_db")
@@ -111,3 +111,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# TODO Measure redis operations in tranches to see if they are all slow, or if only a small nubmer are slowing everything down. Maybe make a graph
+# TODO Measure speed of each operation and write all 100,000 to a csv, then graph them"""
