@@ -381,11 +381,8 @@ class Chattr:
         self.loop.run_forever()
 
     async def message_listener_init(self):
-        await self.connect_client_websocket()
-        await self.listen_for_messages()
-
-    async def connect_client_websocket(self):
         await self.client_websocket.connect()
+        await self.listen_for_messages()
 
     async def listen_for_messages(self):
         while self.connection_active:
