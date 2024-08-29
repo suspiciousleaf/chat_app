@@ -38,20 +38,28 @@ class User:
         self.test_channels: list = test_channels
         self.channels: list = []
         self.bearer_token: dict = self.get_auth_token()
-        self.client_websocket: MyWebSocket = MyWebSocket(self.bearer_token)
+        self.client_websocket: MyWebSocket = MyWebSocket(
+            self.bearer_token, self.username
+        )
         try:
             self.leave_channel("welcome")
         except:
             pass
 
-    async def connect_websocket(self):
-        """Open websocket connection"""
-        try:
-            await self.client_websocket.connect()
-            self.connection_active = True
-            # print(f"{self.username}: Websocket connected!")
-        except:
-            raise WebsocketConnectionError
+    async def connect_websocket(self, max_retries=3, retry_delay=5):
+        """Open websocket connection with retry mechanism"""
+        for attempt in range(max_retries):
+            try:
+                await self.client_websocket.connect()
+                self.connection_active = True
+                return
+            except Exception as e:
+                print(f"{self.username}: Connection attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+        raise WebsocketConnectionError(
+            f"{self.username}: Failed to connect after {max_retries} attempts"
+        )
 
     def get_auth_token(self) -> dict | None:
         """Submits username and password to get a bearer token from the server"""
@@ -142,12 +150,14 @@ class User:
         )
 
     async def logout(self):
-        await self.client_websocket.close()
-        self.connection_active = False
+        """Close the websocket connection and perform cleanup"""
+        if self.connection_active:
+            await self.client_websocket.close()
+            self.connection_active = False
+        print(f"{self.username}: Logged out and disconnected")
 
     async def listen_for_messages(self):
-        """Listen for incoming messages. Channel list will be updated, any other message will be ignored"""
-        await self.connect_websocket()
+        """Listen for incoming messages"""
         while self.connection_active:
             try:
                 message_str = await asyncio.wait_for(
@@ -159,20 +169,14 @@ class User:
                     if event_type == "channel_subscriptions":
                         new_channels = message.get("data")
                         if isinstance(new_channels, list):
-                            # print(f"{self.username}: Before: {self.channels}")
-                            # print(f"{self.username}: Adding: {new_channels}")
                             self.channels.extend(new_channels)
-                            # print(f"{self.username}: After: {self.channels}")
-
             except asyncio.TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"{self.username}: Error receiving message: {e}")
-                if not self.connection_active:
-                    break
-                await asyncio.sleep(5)
+                if self.connection_active:
+                    print(f"{self.username}: Error receiving message: {e}")
 
     def decode_received_message(self, message: str) -> dict:
         try:
