@@ -115,6 +115,9 @@ class ConnectionManager:
             self.listener_task.cancel()
             self.listener_task = None
             if self.message_cache:
+                print(
+                    f"Upload cache triggered by disconnect, {len(self.active_connections) = }, {len(self.message_cache) = }"
+                )
                 await self.upload_cached_messages()
             print("No active connections, stopping listener. Message cache uploaded")
 
@@ -175,6 +178,9 @@ class ConnectionManager:
             time_since_last_message_upload > CACHED_MESSAGE_UPLOAD_TIMER
             and num_messages
         ):
+            print(
+                f"Upload cache triggered by: {num_messages = }, {time_since_last_message_upload = }"
+            )
             await self.upload_cached_messages()
 
     async def upload_cached_messages(self):
