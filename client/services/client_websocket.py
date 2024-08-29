@@ -14,10 +14,11 @@ WEBSOCKET_ENDPOINT = "/ws"
 
 
 class MyWebSocket:
-    def __init__(self, auth_token: dict):
+    def __init__(self, auth_token: dict, username: str | None = None):
         self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"
         self.websocket: WebSocketClientProtocol | None = None
         self.auth_token: dict = auth_token
+        self.username = username
 
     async def connect(self):
         try:
@@ -30,14 +31,17 @@ class MyWebSocket:
                 ping_timeout=10,
                 extra_headers=extra_headers,
             )
-            print(f"Connected to WebSocket at {self.websocket_url}")
         except websockets.exceptions.InvalidStatusCode as e:
             print(f"Invalid status code: {e.status_code}")
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
+            print(
+                f"{self.username + ': ' if self.username else ''}An error occurred: {str(e)}"
+            )
 
         if not self.websocket:
-            print("Connection failed. Reconnecting in 5 seconds...")
+            print(
+                f"{self.username + ': ' if self.username else ''}Connection failed. Reconnecting in 5 seconds..."
+            )
             await asyncio.sleep(5)
             await self.connect()
 
