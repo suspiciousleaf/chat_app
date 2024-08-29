@@ -12,39 +12,46 @@ with open("load_testing/accounts.json", "r") as f:
 
 
 class LoadTester:
-    def __init__(self, num_accounts, num_actions):
+    def __init__(self, num_accounts, num_actions, connection_delay=1):
         self.num_accounts = num_accounts
         self.test_account_pool: dict = accounts
         self.active_accounts = []
         self.num_actions = num_actions
-        self.loop = asyncio.new_event_loop()
-        self.start()
+        self.loop = asyncio.get_event_loop()
+        self.connection_delay = connection_delay
 
-    def run_async_loop(self):
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.create_users())
-
-    async def create_user(self, username, password):
-        """Create and start a single user"""
+    async def create_and_run_user(self, username, password):
+        """Create, connect, and run a single user"""
         user = User(self.loop, username, password, self.num_actions, test_channels)
         self.active_accounts.append(user)
 
-        await asyncio.gather(
-            user.listen_for_messages(),
-            asyncio.to_thread(user.start_activity),
-        )
+        try:
+            await user.connect_websocket()
+            print(f"{username}: Connected successfully")
+            await asyncio.gather(
+                user.listen_for_messages(),
+                asyncio.to_thread(user.start_activity),
+            )
+        except Exception as e:
+            print(f"{username}: Failed to connect or run - {str(e)}")
+        finally:
+            self.active_accounts.remove(user)
 
-    async def create_users(self):
-        """Create and start multiple users concurrently"""
-        tasks = []
+    async def run_load_test(self):
+        """Create and run multiple users with a delay between connections"""
         accounts_to_use = random.sample(
             sorted(self.test_account_pool), self.num_accounts
         )
+        tasks = []
         for account in accounts_to_use:
-            tasks.append(self.create_user(account, self.test_account_pool[account]))
+            task = asyncio.create_task(
+                self.create_and_run_user(account, self.test_account_pool[account])
+            )
+            tasks.append(task)
+            await asyncio.sleep(self.connection_delay)
+
         await asyncio.gather(*tasks)
 
     def start(self):
         """Run the load test"""
-        self.loop = asyncio.get_event_loop()
-        self.loop.run_until_complete(self.create_users())
+        self.loop.run_until_complete(self.run_load_test())
