@@ -39,3 +39,7 @@ if __name__ == "__main__":
 # TODO Change channels from hardcoded to dynamic
 # TODO Add methods to join and leave groups
 # ? Create endpoint to delete account, so accounts can be created, used, and deleted dynamically during testing
+
+#! WIP
+# TODO Deploy non redis version to server for testing
+# TODO Get ARtillery to auth and connect with multiple user accounts, test local and then on VPS"
