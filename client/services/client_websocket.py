@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-WS_URL = "ws://127.0.0.1:8000/ws"
-WS_URL = getenv("WS_URL")
+WS_URL = "ws://127.0.0.1:8000"
+# WS_URL = getenv("WS_URL")
 WEBSOCKET_ENDPOINT = "/ws"
 
 

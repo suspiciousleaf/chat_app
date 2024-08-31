@@ -28,9 +28,9 @@ LIGHT_BLUE = "#CCEDFF"
 LIGHT_GRAY = "#F5F5F5"
 LABEL_COLOUR = "#25265E"
 
-# URL = "http://127.0.0.1:8000"
+URL = "http://127.0.0.1:8000"
 load_dotenv()
-URL = getenv("URL")
+# URL = getenv("URL")
 LOGIN_ENDPOINT = "/auth/token"
 CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
@@ -248,7 +248,9 @@ class Chattr:
 
     def process_login(self):
         self.connection_active = True
-        self.client_websocket = MyWebSocket(self.auth_token)
+        self.client_websocket = MyWebSocket(
+            self.auth_token, username=self.username.get()
+        )
         asyncio.run_coroutine_threadsafe(self.message_listener_init(), self.loop)
 
     def process_logout(self):
@@ -409,9 +411,9 @@ class Chattr:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Error receiving message: {e}")
                 if not self.connection_active:
                     break
+                print(f"Error receiving message: {e}")
                 await asyncio.sleep(5)
 
     def process_received_message(self, message: dict):
