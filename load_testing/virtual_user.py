@@ -13,8 +13,10 @@ from load_testing.sample_words import sample_words
 
 load_dotenv()
 
-URL = getenv("URL")
-WS_URL = getenv("WS_URL")
+# URL = getenv("URL")
+URL = "http://127.0.0.1:8000"
+# WS_URL = getenv("WS_URL")
+WS_URL = "ws://127.0.0.1:8000"
 LOGIN_ENDPOINT = "/auth/token"
 
 MAX_MESSAGE_LENGTH = 10
@@ -152,8 +154,8 @@ class User:
     async def logout(self):
         """Close the websocket connection and perform cleanup"""
         if self.connection_active:
-            await self.client_websocket.close()
             self.connection_active = False
+            await self.client_websocket.close()
         print(f"{self.username}: Logged out and disconnected")
 
     async def listen_for_messages(self):
