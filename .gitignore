@@ -3,6 +3,7 @@ test*.py
 *.db
 docker_commands.txt
 accounts.json
+accounts.csv
 perf_test_db
 
 # Byte-compiled / optimized / DLL files
