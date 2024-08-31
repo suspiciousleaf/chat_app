@@ -1,0 +1,55 @@
+config:
+  # target: https://www.chattr.projectpeng.win
+  target: http://127.0.0.1:8000
+  payload:
+    - path: "./load_testing/accounts.csv"
+      fields:
+        - "username"
+        - "password"
+      order: sequence
+      skipHeader: true
+  phases:
+    - duration: 60
+      arrivalRate: 1
+      rampTo: 5
+      name: Warm up phase
+    # - duration: 60
+    #   arrivalRate: 5
+    #   rampTo: 10
+    #   name: Ramp up load
+    # - duration: 30
+    #   arrivalRate: 10
+    #   rampTo: 30
+    #   name: Spike phase
+  plugins:
+    apdex: {}
+    metrics-by-endpoint: {}
+  apdex:
+    threshold: 100
+before:
+  flow:
+    - log: "Getting auth token"
+    - log: "username: {{ username }} password: {{ password }}"
+    - post:
+        url: "/auth/token"
+        form:
+          username: "{{ username }}"
+          password: "{{ password }}"
+        capture:
+          - json: "$.access_token"
+            as: "token"
+    - log: "Token received: {{ token }}"
+scenarios:
+  - name: "WebSocket scenario"
+    flow:
+      - log: "Connecting to WebSocket with token: {{ token }}"
+      - websocket:
+          url: "ws://127.0.0.1:8000/ws"
+          headers:
+            Authorization: "Bearer {{ token }}"
+      - think: 2
+      - websocket:
+          send: '{"event": "message", "channel": "test_1", "content": "Artillery incoming!"}'
+      - think: 2
+      - websocket:
+          close: true
