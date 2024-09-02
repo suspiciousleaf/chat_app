@@ -6,10 +6,15 @@ import json
 from os import getenv
 from dotenv import load_dotenv
 
+import logging
+logger = logging.getLogger('websockets')
+logger.setLevel(logging.WARNING)
+logger.addHandler(logging.StreamHandler())
+
 load_dotenv()
 
-WS_URL = "ws://127.0.0.1:8000"
-# WS_URL = getenv("WS_URL")
+# WS_URL = "ws://127.0.0.1:8000"
+WS_URL = getenv("WS_URL")
 WEBSOCKET_ENDPOINT = "/ws"
 
 
@@ -34,6 +39,7 @@ class MyWebSocket:
         except websockets.exceptions.InvalidStatusCode as e:
             print(f"Invalid status code: {e.status_code}")
         except Exception as e:
+            logger.warning(e, exc_info=True)
             print(
                 f"{self.username + ': ' if self.username else ''}An error occurred: {str(e)}"
             )
