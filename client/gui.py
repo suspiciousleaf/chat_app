@@ -28,9 +28,9 @@ LIGHT_BLUE = "#CCEDFF"
 LIGHT_GRAY = "#F5F5F5"
 LABEL_COLOUR = "#25265E"
 
-URL = "http://127.0.0.1:8000"
+# URL = "http://127.0.0.1:8000"
 load_dotenv()
-# URL = getenv("URL")
+URL = getenv("URL")
 LOGIN_ENDPOINT = "/auth/token"
 CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
@@ -397,13 +397,17 @@ class Chattr:
                     # "messages" can contain event information such as channel subscriptions, or message data. This filters based on keys present.
                     event_type = message.get("event")
                     if event_type == "channel_subscriptions":
+                        print(f"Channel sub message: {message}")
                         new_channels = message.get("data")
                         if isinstance(new_channels, list):
                             self.channels.extend(new_channels)
                             self.build_channel_tabs(new_channels)
                     elif event_type == "message history":
                         for individual_message in message.get("data", []):
-                            self.process_received_message(individual_message)
+                            try:
+                                self.process_received_message(individual_message)
+                            except:
+                                print(f"Unable to process message: {message}")
                     else:
                         self.process_received_message(message)
             except asyncio.TimeoutError:
@@ -481,7 +485,7 @@ class Chattr:
 
     def create_nb_context_menus(self):
         """Create context menus to add or add/leave channels"""
-        add_leave_context_menu = tk.Menu(self.nb, tearoff=0)
+        add_leave_context_menu: tk.Menu = tk.Menu(self.nb, tearoff=0)
         add_leave_context_menu.add_command(
             label="Add new channel",
             command=lambda: self.add_channel_popup(),
@@ -489,22 +493,22 @@ class Chattr:
         add_leave_context_menu.add_command(
             label="Leave Channel", command=lambda: self.leave_channel()
         )
-        self.nb.add_leave_context: tk.Menu = add_leave_context_menu
+        self.nb.add_leave_context = add_leave_context_menu
 
         # Create add-only context menu
-        add_context_menu = tk.Menu(self.nb, tearoff=0)
+        add_context_menu: tk.Menu = tk.Menu(self.nb, tearoff=0)
         add_context_menu.add_command(
             label="Add new channel",
             command=lambda: self.add_channel_popup(),
         )
-        self.nb.add_context_menu: tk.Menu = add_context_menu
+        self.nb.add_context_menu = add_context_menu
 
         # Create leave-only context menu
-        leave_context_menu = tk.Menu(self.nb, tearoff=0)
+        leave_context_menu: tk.Menu = tk.Menu(self.nb, tearoff=0)
         leave_context_menu.add_command(
             label="Leave Channel", command=lambda: self.leave_channel()
         )
-        self.nb.leave_context: tk.Menu = leave_context_menu
+        self.nb.leave_context = leave_context_menu
 
     def on_tab_right_click(self, event, channel_name: str, tab_index: int):
         """Handle the right-click action for chosen tab"""
@@ -563,13 +567,13 @@ class Chattr:
         popup.minsize(280, 25)
         popup.title("Add new channel")
         popup.resizable(True, False)
-        popup_entry = ttk.Entry(popup)
+        popup_entry: ttk.Entry = ttk.Entry(popup)
         popup_entry.focus()
 
         popup.grid_columnconfigure(0, weight=1)
         self.popup["window"] = popup
         popup_entry.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
-        self.popup["channel_name_entry"]: tk.Entry = popup_entry
+        self.popup["channel_name_entry"] = popup_entry
         # Bind Return to channel name entry
         self.popup["channel_name_entry"].bind("<Return>", self.add_new_channel)
 
@@ -838,6 +842,10 @@ class Chattr:
                 self.on_closing()
             self.thread.join()
 
+# import logging
+# logger = logging.getLogger('websockets')
+# logger.setLevel(logging.DEBUG)
+# logger.addHandler(logging.StreamHandler())
 
 if __name__ == "__main__":
     chattr = Chattr()
