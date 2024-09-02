@@ -5,6 +5,7 @@ docker_commands.txt
 accounts.json
 accounts.csv
 perf_test_db
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

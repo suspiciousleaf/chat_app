@@ -1,6 +1,6 @@
 config:
-  # target: https://www.chattr.projectpeng.win
-  target: http://127.0.0.1:8000
+  target: https://www.chattr.projectpeng.win
+  # target: http://127.0.0.1:8000
   payload:
     - path: "./load_testing/accounts.csv"
       fields:
@@ -9,7 +9,7 @@ config:
       order: sequence
       skipHeader: true
   phases:
-    - duration: 60
+    - duration: 30
       arrivalRate: 1
       rampTo: 5
       name: Warm up phase
@@ -26,30 +26,36 @@ config:
     metrics-by-endpoint: {}
   apdex:
     threshold: 100
-before:
-  flow:
-    - log: "Getting auth token"
-    - log: "username: {{ username }} password: {{ password }}"
-    - post:
-        url: "/auth/token"
-        form:
-          username: "{{ username }}"
-          password: "{{ password }}"
-        capture:
-          - json: "$.access_token"
-            as: "token"
-    - log: "Token received: {{ token }}"
 scenarios:
   - name: "WebSocket scenario"
     flow:
-      - log: "Connecting to WebSocket with token: {{ token }}"
-      - websocket:
-          url: "ws://127.0.0.1:8000/ws"
+      # - log: "Getting auth token"
+      # - log: "username: {{ username }} password: {{ password }}"
+      - post:
+          url: "/auth/token"
+          form:
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.access_token"
+              as: "token"
+      # - log: "Token received: {{ token }}"
+      #
+      # - log: "Connecting to WebSocket with token: {{ token }}"
+      - ws:
+          # url: "ws://127.0.0.1:8000/ws"
+          url: "wss://www.chattr.projectpeng.win/ws"
           headers:
             Authorization: "Bearer {{ token }}"
       - think: 2
-      - websocket:
+      - ws:
           send: '{"event": "message", "channel": "test_1", "content": "Artillery incoming!"}'
       - think: 2
-      - websocket:
+      - ws:
+          send: '{"event": "message", "channel": "test_1", "content": "Artillery incoming!"}'
+      - think: 2
+      - ws:
           close: true
+#! Run commands:
+# cd into directory with .yml file with no logging
+# artillery run chattr_artillery.yml
