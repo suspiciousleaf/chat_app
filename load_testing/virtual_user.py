@@ -13,10 +13,10 @@ from load_testing.sample_words import sample_words
 
 load_dotenv()
 
-# URL = getenv("URL")
-URL = "http://127.0.0.1:8000"
-# WS_URL = getenv("WS_URL")
-WS_URL = "ws://127.0.0.1:8000"
+URL = getenv("URL")
+# URL = "http://127.0.0.1:8000"
+WS_URL = getenv("WS_URL")
+# WS_URL = "ws://127.0.0.1:8000"
 LOGIN_ENDPOINT = "/auth/token"
 
 MAX_MESSAGE_LENGTH = 10
@@ -156,7 +156,7 @@ class User:
         if self.connection_active:
             self.connection_active = False
             await self.client_websocket.close()
-        print(f"{self.username}: Logged out and disconnected")
+        # print(f"{self.username}: Logged out and disconnected")
 
     async def listen_for_messages(self):
         """Listen for incoming messages"""
@@ -177,8 +177,9 @@ class User:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                if self.connection_active:
-                    print(f"{self.username}: Error receiving message: {e}")
+                pass
+                # if self.connection_active:
+                #     print(f"{self.username}: Error receiving message: {e}")
 
     def decode_received_message(self, message: str) -> dict:
         try:
@@ -187,3 +188,8 @@ class User:
             print(f"{self.username}: Could not decode message: {message}")
         except Exception as e:
             print(f"{self.username}: Unknown error occurred when decoding message: {e}")
+
+import logging
+logger = logging.getLogger('websockets')
+logger.setLevel(logging.WARNING)
+logger.addHandler(logging.StreamHandler())

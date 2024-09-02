@@ -7,9 +7,9 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 from os import getenv
 
-from server.services.db_manager import db
+# from server.services.db_manager import db
 
-# from services.db_manager import db
+from services.db_manager import db
 
 
 load_dotenv()
@@ -161,7 +161,7 @@ router = APIRouter(prefix=ROUTER_PREFIX)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> dict:
-    print(f"/auth/token post request received: {form_data.username}")
+    # print(f"/auth/token post request received: {form_data.username}")
     user: UserInDB = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -174,6 +174,7 @@ async def login_for_access_token(
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    # print(f"auth.py Authorized user: {user.username}")
     return {"access_token": access_token, "token_type": "bearer"}
 
 
