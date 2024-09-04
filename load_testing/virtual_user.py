@@ -3,6 +3,7 @@ import asyncio
 import json
 import random
 import time
+import traceback
 
 from os import getenv
 
@@ -23,26 +24,26 @@ MAX_MESSAGE_LENGTH = 10
 
 
 class WebsocketConnectionError(Exception):
-    def __init__(self):
+    def __init__(self, message):
         # TODO Flesh this out
-        print("No websocket connection")
+        print(message)
 
 
 class User:
     def __init__(
-        self, loop, username: str, password: str, actions: int, test_channels: list
+        self, loop, bearer_token: str, actions: int, test_channels: list, username: str = None, password: str = None, 
     ):
         self.loop = loop
-        self.username: str = username
-        self.password: str = password
+        # self.username: str = username
+        # self.password: str = password
         self.actions: int = actions
         self.connection_active: bool = False
         self.test_channels: list = test_channels
         self.channels: list = []
-        self.bearer_token: dict = self.get_auth_token()
+        self.bearer_token = {"access_token": bearer_token.replace("Bearer ", "")}
+        # self.bearer_token: dict = self.get_auth_token()
         self.client_websocket: MyWebSocket = MyWebSocket(
-            self.bearer_token, self.username
-        )
+            self.bearer_token)#, self.username)
         try:
             self.leave_channel("welcome")
         except:
@@ -56,11 +57,13 @@ class User:
                 self.connection_active = True
                 return
             except Exception as e:
-                print(f"{self.username}: Connection attempt {attempt + 1} failed: {e}")
+                print(f"Connection attempt {attempt + 1} failed: {e.args=}, {e.__class__=}")
+                traceback.print_tb(e.__traceback__)
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
         raise WebsocketConnectionError(
-            f"{self.username}: Failed to connect after {max_retries} attempts"
+            f"Failed to connect after {max_retries} attempts"
+            # f"{self.username}: Failed to connect after {max_retries} attempts"
         )
 
     def get_auth_token(self) -> dict | None:
@@ -99,10 +102,12 @@ class User:
 
     def start_activity(self):
         """Begin the loop of performing random actions"""
-        for _ in range(self.actions):
-            self.choose_action()
-            time.sleep((random.randint(1, 20)) / 10)
-        # Once the number of actions have been completed, close the connection
+        time.sleep(30)
+        print("Starting activity")
+        # for _ in range(self.actions):
+        #     self.choose_action()
+        #     time.sleep((random.randint(1, 20)) / 10)
+        # # Once the number of actions have been completed, close the connection
         asyncio.run_coroutine_threadsafe(self.logout(), self.loop)
 
     def choose_action(self):
