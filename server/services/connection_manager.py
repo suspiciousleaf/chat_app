@@ -8,6 +8,7 @@ from sys import getsizeof
 import logging
 
 from fastapi import WebSocket
+from fastapi.websockets import WebSocketState
 from dotenv import load_dotenv
 
 # from server.services.db_manager import DatabaseManager
@@ -150,14 +151,54 @@ class ConnectionManager:
                 await self.upload_cached_messages()
             print("No active connections, stopping listener. Message cache uploaded")
 
+    # async def broadcast(self, message: dict):
+    #     """Send message to all active connections that are subscribed to that channel"""
+    #     channel = message.get("channel")
+    #     # Convert message to string so it can be sent over websocket
+    #     message_str = json.dumps(message)
+    #     closed_connections = []
+    #     # Loop through all active connections subscribed to that channel and send the message
+    #     for user, websocket in self.channel_subscribers.get(channel).items():
+    #         if websocket.application_state == "connected":  # Check if the WebSocket is connected
+    #             try:
+    #                 await websocket.send_text(message_str)
+    #             except Exception as e:  # Handle any exceptions during sending
+    #                 print(f"Error sending message to {user}: {e}")
+    #                 closed_connections.append(user)
+    #         else:
+    #             closed_connections.append(user)
+    #     if closed_connections:
+    #         print(closed_connections)
+
     async def broadcast(self, message: dict):
         """Send message to all active connections that are subscribed to that channel"""
         channel = message.get("channel")
-        # Convert message to string so it can be sent over websocket
         message_str = json.dumps(message)
-        # Loop through all active connections subscribed to that channel and send the message
-        for websocket in self.channel_subscribers.get(channel).values():
+        closed_connections_client_state = []
+        closed_connections_exception = []
+        tasks = []
+
+        for user, websocket in self.channel_subscribers.get(channel, {}).items():
+            if websocket.client_state == WebSocketState.CONNECTED:
+                tasks.append(self.send_message(user, websocket, message_str, closed_connections_exception))
+            else:
+                closed_connections_client_state.append(user)
+        
+        await asyncio.gather(*tasks)
+        
+        if closed_connections_client_state:
+            print(f"{closed_connections_client_state=}")
+
+        if closed_connections_exception:
+            print(f"{closed_connections_exception=}")
+
+    async def send_message(self, user: str, websocket: WebSocket, message_str: str, closed_connections_exception: list):
+        try:
             await websocket.send_text(message_str)
+        except Exception as e:
+            print(f"Error: {websocket.client_state=}")
+            print(f"Error sending message to {user}: {e}")
+            closed_connections_exception.append(user)
 
     async def handle_incoming_message(self, message: dict):
         message_event = message.get("event")
