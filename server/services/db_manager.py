@@ -56,7 +56,6 @@ class DatabaseManager:
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY UNIQUE NOT NULL,
             password_hashed TEXT NOT NULL,
-            --salt TEXT NOT NULL,
             disabled BOOLEAN DEFAULT 0,
             channels TEXT,
             creation_date DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -72,9 +71,12 @@ class DatabaseManager:
             FOREIGN KEY (username) REFERENCES users(username)
         );"""
 
+        create_index_messages = "CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel);"
+
         with self.get_cursor() as cur:
             cur.execute(create_users_table)
             cur.execute(create_messages_table)
+            cur.execute(create_index_messages)
             cur.connection.commit()
 
     def insert_query(self, query: str, values: dict) -> None:
