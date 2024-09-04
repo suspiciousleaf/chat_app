@@ -1,0 +1,32 @@
+config:
+  target: "wss://www.chattr.projectpeng.win/ws" # Replace with your WebSocket server URL
+  phases:
+  - duration: 30
+    arrivalRate: 1
+    rampTo: 10
+    name: Warm up phase
+  - duration: 60
+    arrivalRate: 10
+    rampTo: 30
+    name: Ramp up load
+  - duration: 30
+    arrivalRate: 30
+    rampTo: 50
+    name: Spike phase
+  plugins:
+    apdex: {}
+    metrics-by-endpoint: {}
+  apdex:
+    threshold: 100
+  ws:
+    # Specify the WebSocket connection timeout (in milliseconds)
+    # You can increase this if you're facing timeouts
+    timeout: 5000
+
+scenarios:
+  - engine: "ws"
+    flow:
+      - loop:
+          - send: "Hello, WebSocket server!"
+          - think:  12 # Wait for 2 seconds
+        count: 5 # Repeat sending message 30 times
