@@ -4,6 +4,7 @@ test*.py
 docker_commands.txt
 accounts.json
 accounts.csv
+accounts_tokens.csv
 perf_test_db
 .vscode/
 
