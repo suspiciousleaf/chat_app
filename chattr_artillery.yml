@@ -2,10 +2,9 @@ config:
   target: https://www.chattr.projectpeng.win
   # target: http://127.0.0.1:8000
   payload:
-    - path: "./load_testing/accounts.csv"
+    - path: "./load_testing/accounts_tokens.csv"
       fields:
-        - "username"
-        - "password"
+        - "token"
       order: sequence
       skipHeader: true
   phases:
@@ -29,33 +28,32 @@ config:
 scenarios:
   - name: "WebSocket scenario"
     flow:
-      # - log: "Getting auth token"
-      # - log: "username: {{ username }} password: {{ password }}"
-      - post:
-          url: "/auth/token"
-          form:
-            username: "{{ username }}"
-            password: "{{ password }}"
-          capture:
-            - json: "$.access_token"
-              as: "token"
+    - engine: "ws"
+    #   # - log: "Getting auth token"
+    #   # - log: "username: {{ username }} password: {{ password }}"
+    #   - post:
+    #       url: "/auth/token"
+    #       form:
+    #         username: "{{ username }}"
+    #         password: "{{ password }}"
+    #       capture:
+    #         - json: "$.access_token"
+    #           as: "token"
       # - log: "Token received: {{ token }}"
       #
       # - log: "Connecting to WebSocket with token: {{ token }}"
-      - ws:
-          # url: "ws://127.0.0.1:8000/ws"
-          url: "wss://www.chattr.projectpeng.win/ws"
-          headers:
-            Authorization: "Bearer {{ token }}"
-      - think: 2
-      - ws:
-          send: '{"event": "message", "channel": "test_1", "content": "Artillery incoming!"}'
-      - think: 2
-      - ws:
-          send: '{"event": "message", "channel": "test_1", "content": "Artillery incoming!"}'
-      - think: 2
-      - ws:
-          close: true
+    - ws:
+        # url: "ws://127.0.0.1:8000/ws"
+      - log: "Bearer {{ token }}"
+        url: "wss://www.chattr.projectpeng.win/ws"
+        headers:
+          Authorization: "Bearer {{ token }}"
+    - loop:
+        - send: '{"event": "message", "channel": "test_0", "content": "Artillery incoming!",}'
+        - think:  1 # Wait for 2 seconds
+      count: 30 # Repeat sending message 30 times
+    - ws:
+        close: true
 #! Run commands:
 # cd into directory with .yml file with no logging
 # artillery run chattr_artillery.yml
