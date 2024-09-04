@@ -7,6 +7,8 @@ if __name__ == "__main__":
 #! Client
 # TODO Make buttons remain still between screens during login
 # TODO add full channel name banner to top of client, or show full name on mouse hover
+# TODO Print all message history in one block, rather than line by line
+# TODO Add a max message character limit
 
 #! Auth
 # TODO Verify token expiry is working as expected
@@ -15,6 +17,10 @@ if __name__ == "__main__":
 # TODO Read DDIA on mssage encoding and decoding, protobuff. Could send messages faster over ws
 # TODO Check ws login event loop thread logic and behaviour
 # TODO check disconnect logic
+# TODO Message history can exceed max message size and cause disconnect, only load most recent 50 messages
+# TODO Button or trigger to load older message history?
+# TODO Add a max message character limit
+# Connections are failing due to a TimeOutError, still happens when message history is commented out
 
 #! Database
 # TODO Add indexes
@@ -41,5 +47,6 @@ if __name__ == "__main__":
 # ? Create endpoint to delete account, so accounts can be created, used, and deleted dynamically during testing
 
 #! WIP
-# TODO Deploy non redis version to server for testing
-# TODO Get ARtillery to auth and connect with multiple user accounts, test local and then on VPS"
+# TODO Get Artillery to auth and connect with multiple user accounts, test local and then on VPS"
+#! Comment out everything apart from websocket connect and see if timeout issue still occurs
+#! Add indexes to database

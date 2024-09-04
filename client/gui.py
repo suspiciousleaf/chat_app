@@ -397,7 +397,6 @@ class Chattr:
                     # "messages" can contain event information such as channel subscriptions, or message data. This filters based on keys present.
                     event_type = message.get("event")
                     if event_type == "channel_subscriptions":
-                        print(f"Channel sub message: {message}")
                         new_channels = message.get("data")
                         if isinstance(new_channels, list):
                             self.channels.extend(new_channels)
