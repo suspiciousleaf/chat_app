@@ -5,6 +5,7 @@ import random
 import time
 from os import getenv
 import csv
+import aiohttp
 
 from dotenv import load_dotenv
 from sample_words import sample_words
@@ -62,6 +63,54 @@ def create_accounts_on_server_from_local_file():
             print(f"Account {i} processed")
     print(f"{len(accounts)} accounts created")
 
+async def get_auth_token(session: aiohttp.ClientSession, username, password) -> dict | None:
+    """Submits username and password to get a bearer token from the server"""
+    payload = {
+        "username": username,
+        "password": password,
+    }
+    async with session.post(f"{URL}{LOGIN_ENDPOINT}", data=payload) as response:
+        response.raise_for_status()
+        return await response.json()
+
+async def process_account(session, username: str, password: str, tokens: list, i, t0):
+    """Processes a single account to get the token and handles exceptions."""
+    try:
+        token = await get_auth_token(session, username, password)
+        tokens.append(f"Bearer {token.get('access_token')}")
+    except Exception as e:
+        print(f"{username=}, {password=}, {e}")
+    if not i % 50:
+        print(f"Account {i} processed: {time.perf_counter() - t0:.1f}s")
+
+async def create_bearer_token_csv():
+    """Load the local accounts file and create those accounts on the server concurrently."""
+    t0 = time.perf_counter()
+    with open("load_testing/accounts.json", "r") as f:
+        accounts = json.load(f)
+    
+    tokens = []
+    
+    t_whole = time.perf_counter()
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for i, (username, password) in enumerate(accounts.items()):
+            task = process_account(session, username, password, tokens, i, t0)
+            tasks.append(task)
+        
+        await asyncio.gather(*tasks)
+
+    total_time = time.perf_counter() - t_whole
+
+    print(f"{len(accounts)} tokens acquired in {total_time:.1f}s, av {total_time / len(accounts)} per token")
+    
+    with open("load_testing/accounts_tokens.csv", "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(("token",))
+        for row in tokens:
+            writer.writerow((row,))
+
+
 
 def convert_accounts_json_to_csv():
     with open("load_testing/accounts.json", "r") as f:
@@ -74,3 +123,8 @@ def convert_accounts_json_to_csv():
 
 
 # create_accounts_on_server_from_local_file()
+# create_bearer_token_csv()
+# asyncio.run(create_bearer_token_csv())
+
+# Synchronous approx 200 ms per token, 198 s total, server CPU load ~70%
+# Asynchronous approx 170 ms per token, 168s total, server CPU load ~92%
