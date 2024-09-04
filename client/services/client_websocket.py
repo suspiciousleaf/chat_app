@@ -34,10 +34,13 @@ class MyWebSocket:
                 self.websocket_url,
                 ping_interval=20,
                 ping_timeout=10,
+                open_timeout=10,
                 extra_headers=extra_headers,
             )
         except websockets.exceptions.InvalidStatusCode as e:
             print(f"Invalid status code: {e.status_code}")
+        except TimeoutError as e:
+            logger.warning(f"{self.username + ': ' if self.username else ''}A timeout error occurred: {str(e)}")
         except Exception as e:
             logger.warning(e, exc_info=True)
             print(
