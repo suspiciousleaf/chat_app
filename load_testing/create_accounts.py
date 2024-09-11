@@ -73,19 +73,21 @@ async def get_auth_token(session: aiohttp.ClientSession, username, password) -> 
         response.raise_for_status()
         return await response.json()
 
-async def process_account(session, username: str, password: str, tokens: list, i, t0):
+async def process_account(session, username: str, password: str, tokens: list):
     """Processes a single account to get the token and handles exceptions."""
     try:
         token = await get_auth_token(session, username, password)
         tokens.append(f"Bearer {token.get('access_token')}")
     except Exception as e:
-        print(f"{username=}, {password=}, {e}")
-    if not i % 50:
-        print(f"Account {i} processed: {time.perf_counter() - t0:.1f}s")
+        try:
+            await asyncio.sleep(1)
+            token = await get_auth_token(session, username, password)
+            tokens.append(f"Bearer {token.get('access_token')}")
+        except:
+            print(f"{username=}, {password=}, {e}")
 
 async def create_bearer_token_csv():
     """Load the local accounts file and create those accounts on the server concurrently."""
-    t0 = time.perf_counter()
     with open("load_testing/accounts.json", "r") as f:
         accounts = json.load(f)
     
@@ -94,15 +96,15 @@ async def create_bearer_token_csv():
     t_whole = time.perf_counter()
     async with aiohttp.ClientSession() as session:
         tasks = []
-        for i, (username, password) in enumerate(accounts.items()):
-            task = process_account(session, username, password, tokens, i, t0)
+        for _, (username, password) in enumerate(accounts.items()):
+            task = process_account(session, username, password, tokens)
             tasks.append(task)
-        
+    
         await asyncio.gather(*tasks)
 
     total_time = time.perf_counter() - t_whole
 
-    print(f"{len(accounts)} tokens acquired in {total_time:.1f}s, av {total_time / len(accounts)} per token")
+    print(f"{len(accounts)} tokens acquired in {total_time:.1f}s, av {(total_time / len(tokens))*1000:.1f}ms per token")
     
     with open("load_testing/accounts_tokens.csv", "w") as f:
         writer = csv.writer(f)
