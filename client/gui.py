@@ -9,6 +9,7 @@ from json import JSONDecodeError
 import requests
 from re import split as re_split
 from _tkinter import TclError
+import logging
 
 from dotenv import load_dotenv
 from client.services.client_websocket import MyWebSocket
@@ -68,9 +69,18 @@ MAX_CHANNELS = 12
 # }
 
 
+logger = logging.getLogger('LoadTester')
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter.datefmt = '%H:%M:%S'
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
 class Chattr:
     def __init__(self):
         # Create instance attributes
+        self.logger: logging.Logger = logger
         self.window: tk.Tk = tk.Tk()
         self.width: int = WINDOW_WIDTH
         self.height: int = WINDOW_HEIGHT
@@ -249,6 +259,7 @@ class Chattr:
     def process_login(self):
         self.connection_active = True
         self.client_websocket = MyWebSocket(
+            self.logger,
             self.auth_token, username=self.username.get()
         )
         asyncio.run_coroutine_threadsafe(self.message_listener_init(), self.loop)
