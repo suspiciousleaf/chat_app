@@ -33,7 +33,6 @@ class MyWebSocket:
             extra_headers = {
                 "Authorization": f"Bearer {self.auth_token.get('access_token', '')}"
             }
-            self.logger.info(f"{extra_headers=}")
             self.websocket = await websockets.connect(
                 self.websocket_url,
                 ping_interval=20,
