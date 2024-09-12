@@ -5,6 +5,8 @@ import time
 import json
 from os import getenv
 from dotenv import load_dotenv
+import traceback
+from logging import Logger
 
 import logging
 logger = logging.getLogger('websockets')
@@ -19,7 +21,8 @@ WEBSOCKET_ENDPOINT = "/ws"
 
 
 class MyWebSocket:
-    def __init__(self, auth_token: dict, username: str | None = None):
+    def __init__(self, logger: Logger, auth_token: dict, username: str | None = None):
+        self.logger = logger
         self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"
         self.websocket: WebSocketClientProtocol | None = None
         self.auth_token: dict = auth_token
@@ -30,17 +33,21 @@ class MyWebSocket:
             extra_headers = {
                 "Authorization": f"Bearer {self.auth_token.get('access_token', '')}"
             }
+            self.logger.info(f"{extra_headers=}")
             self.websocket = await websockets.connect(
                 self.websocket_url,
                 ping_interval=20,
                 ping_timeout=10,
-                open_timeout=10,
+                open_timeout=20,
                 extra_headers=extra_headers,
             )
         except websockets.exceptions.InvalidStatusCode as e:
             print(f"Invalid status code: {e.status_code}")
         except TimeoutError as e:
-            logger.warning(f"{self.username + ': ' if self.username else ''}A timeout error occurred: {str(e)}")
+            # logger.warning(f"{self.username + ': ' if self.username else ''}A timeout error occurred: {e}")
+            # logger.warning(f"TimeoutError: {e.args=}, {e.__class__=}")
+            # traceback.print_tb(e.__traceback__)
+            pass
         except Exception as e:
             logger.warning(e, exc_info=True)
             print(
