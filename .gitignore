@@ -10,6 +10,7 @@ perf_test_db
 .vscode/
 perf_testing.md
 /perf_data/
+most_recent_perf_raw_data.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
