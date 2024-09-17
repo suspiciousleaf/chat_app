@@ -2,3 +2,13 @@
 __pycache__/
 docker_commands.txt
 .vscode/
+test*.py
+*.db
+docker_commands.txt
+accounts.json
+accounts.csv
+accounts_tokens.csv
+perf_test_db
+.vscode/
+perf_testing.md
+/perf_data/
