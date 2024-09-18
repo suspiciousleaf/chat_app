@@ -5,17 +5,16 @@ from pathlib import Path
 from os import getenv
 import datetime
 from sys import getsizeof
-import logging
+from logging import Logger
 
 from fastapi import WebSocket
-from fastapi.websockets import WebSocketState
+from fastapi.websockets import WebSocketState, WebSocketDisconnect
 from dotenv import load_dotenv
+import psutil
 
 # from server.services.db_manager import DatabaseManager
 from services.db_manager import DatabaseManager
 
-
-logger = logging.getLogger()
 
 
 env_path = Path(".") / ".env"
@@ -29,8 +28,9 @@ CACHED_MESSAGE_UPLOAD_TIMER = int(getenv("CACHED_MESSAGE_UPLOAD_TIMER"))
 
 
 class ConnectionManager:
-    def __init__(self, db: DatabaseManager):
-        self.db = db
+    def __init__(self, logger:Logger, db: DatabaseManager):
+        self.logger: Logger = logger
+        self.db: DatabaseManager = db
         self.listener_task = None
         # Dict of active connections, {"username":{"ws": websocket, "channels": {"welcome", "hello", etc}}
         self.active_connections: dict[str, dict[WebSocket, set]] = {}
@@ -38,6 +38,12 @@ class ConnectionManager:
         self.channel_subscribers: dict[str, dict] = {}
         self.message_cache: list[dict] = []
         self.time_last_message_backup: int = round(time.time())
+        self.load_testing: bool = False
+        # self.message_volume = 0
+        # self.message_volume_timer = None
+        self.ema_window = 3
+        self.alpha = 2 / (self.ema_window + 1)  # Smoothing factor based on window size
+        
 
     async def connect(self, websocket: WebSocket, username: str):
         await websocket.accept()
@@ -47,17 +53,24 @@ class ConnectionManager:
             if channel not in self.channel_subscribers:
                 self.channel_subscribers[channel] = {}
             self.channel_subscribers[channel][username] = websocket
-
-        await self.send_channel_subscriptions(websocket, channels)
-        await self.send_channel_history(websocket, channels)
+        if username == "monitor":
+            self.logger.info("Load testing beginning")
+            self.load_testing = True
+            # Reset load testing values
+            self.message_volume = 0
+            self.message_volume_timer = time.perf_counter()
+            self.ema_message_volume = 0
+            
+        else:
+            await self.send_channel_subscriptions(websocket, channels)
+            # await self.send_channel_history(websocket, channels)
 
         # Starts the message listener once at least one user is connected.
         if not self.listener_task or self.listener_task.done():
             self.listener_task = asyncio.create_task(self.start_listener())
-            print("First connection opened, starting listener")
+            self.logger.info("First connection opened, starting listener")
 
-        print(f"Active connections: {len(self.active_connections)}")
-        logger.info(f"Active connections: {len(self.active_connections)}")
+        self.logger.info(f"Active connections: {len(self.active_connections)}")
 
     async def send_channel_subscriptions(self, websocket: WebSocket, channels: set):
         """Send a formatted message to the client with a list of channels that the user account is subscribed to"""
@@ -126,81 +139,91 @@ class ConnectionManager:
         await self.send_channel_subscriptions(
             self.active_connections[username]["ws"], {channel}
         )
-        await self.send_channel_history(
-            self.active_connections[username]["ws"], {channel}
-        )
+        # await self.send_channel_history(
+        #     self.active_connections[username]["ws"], {channel}
+        # )
 
     async def disconnect(self, username: str):
         # TODO Could use this to send a 'user disconnected' message to the channel
 
         # Loop through all channels that a username is subscribed to, and remove that username from each channel's dict of subscribed users. If that channel no longer has any subscribed users connected, remove it from the dict of active channels. Finally remove user from the dict of active connections
-        for channel in self.active_connections[username].get("channels", []):
-            self.channel_subscribers[channel].pop(username)
-            if not self.channel_subscribers[channel]:
-                self.channel_subscribers.pop(channel)
-        self.active_connections.pop(username, None)
+        if username == "monitor":
+            self.load_testing = False
+            self.logger.info("Stopped load testing")
+            self.message_volume = 0
+            self.message_volume_timer = None
+            self.ema_message_volume = 0
+        try:
+            if username in self.active_connections:
+                websocket: WebSocket =  self.active_connections[username].get("ws")
+                for channel in self.active_connections[username].get("channels", []):
+                    self.channel_subscribers.get(channel, {}).pop(username, None)
+                    if not self.channel_subscribers.get(channel):
+                        self.channel_subscribers.pop(channel, None)
+                self.active_connections.pop(username, None)
+                await websocket.close()
+        except RuntimeError:
+            pass
+        except Exception as e:
+            self.logger.warning(f"Exception during disconnect: {type(e).__name__}: {e}")
 
         # Disable listener if there are no active connections
         if not self.active_connections and self.listener_task:
             self.listener_task.cancel()
             self.listener_task = None
             if self.message_cache:
-                print(
-                    f"Upload cache triggered by disconnect, {len(self.active_connections) = }, {len(self.message_cache) = }"
+                self.logger.info(
+                    f"Upload cache triggered by disconnect, {len(self.active_connections) = }, {len(self.message_cache) = }, {len(self.active_connections) = }"
                 )
                 await self.upload_cached_messages()
-            print("No active connections, stopping listener. Message cache uploaded")
-
-    # async def broadcast(self, message: dict):
-    #     """Send message to all active connections that are subscribed to that channel"""
-    #     channel = message.get("channel")
-    #     # Convert message to string so it can be sent over websocket
-    #     message_str = json.dumps(message)
-    #     closed_connections = []
-    #     # Loop through all active connections subscribed to that channel and send the message
-    #     for user, websocket in self.channel_subscribers.get(channel).items():
-    #         if websocket.application_state == "connected":  # Check if the WebSocket is connected
-    #             try:
-    #                 await websocket.send_text(message_str)
-    #             except Exception as e:  # Handle any exceptions during sending
-    #                 print(f"Error sending message to {user}: {e}")
-    #                 closed_connections.append(user)
-    #         else:
-    #             closed_connections.append(user)
-    #     if closed_connections:
-    #         print(closed_connections)
+            self.logger.info("No active connections, stopping listener. Message cache uploaded")
 
     async def broadcast(self, message: dict):
         """Send message to all active connections that are subscribed to that channel"""
         channel = message.get("channel")
         message_str = json.dumps(message)
-        closed_connections_client_state = []
-        closed_connections_exception = []
+        closed_connections = []
         tasks = []
 
+        # Iterate over users and websockets subscribed to the channel
         for user, websocket in self.channel_subscribers.get(channel, {}).items():
-            if websocket.client_state == WebSocketState.CONNECTED:
-                tasks.append(self.send_message(user, websocket, message_str, closed_connections_exception))
-            else:
-                closed_connections_client_state.append(user)
+            # Append the send_message task to the list of tasks
+            tasks.append(self.send_message(user, websocket, message_str, closed_connections))
         
-        await asyncio.gather(*tasks)
+        # Gather and await the results of the tasks
+        await asyncio.gather(*tasks, return_exceptions=True)
         
-        if closed_connections_client_state:
-            print(f"{closed_connections_client_state=}")
+        # Handle closed connections
+        if closed_connections:
+            disconnect_tasks = []
+            self.logger.debug(f"Closed connections: {closed_connections}")
+            for user in closed_connections:
+                disconnect_tasks.append(self.disconnect(user))
+        
+            # Gather and await the results of the tasks
+            await asyncio.gather(*disconnect_tasks, return_exceptions=True)
 
-        if closed_connections_exception:
-            print(f"{closed_connections_exception=}")
 
-    async def send_message(self, user: str, websocket: WebSocket, message_str: str, closed_connections_exception: list):
+    async def send_message(self, user: str, websocket: WebSocket, message_str: str, closed_connections: list):
+        if user not in self.active_connections:
+            return
         try:
             await websocket.send_text(message_str)
+            if self.load_testing:
+                self.message_volume += 1
+                if self.message_volume_timer is None:
+                    self.message_volume_timer = time.perf_counter()
+        except WebSocketDisconnect:
+            closed_connections.append(user)
         except Exception as e:
-            print(f"Error: {websocket.client_state=}")
-            print(f"Error sending message to {user}: {e}")
-            closed_connections_exception.append(user)
+            if str(e) == 'Cannot call "send" once a close message has been sent.':
+                closed_connections.append(user)
+            else:
+                self.logger.warning(f"Exception sending message, closing connection: {user in self.active_connections=} {type(e).__name__}: {e}")
+                closed_connections.append(user)
 
     async def handle_incoming_message(self, message: dict):
+        self.logger.debug(f"Received: {message}")
         message_event = message.get("event")
         if message_event == "message":
             # Timestamp is generated by server for UTC and converted to an ISO 8601 format string for redis and database compatibility
@@ -214,6 +237,8 @@ class ConnectionManager:
             await self.leave_channel(message.get("username"), message.get("channel"))
         elif message_event == "add_channel":
             await self.add_channel(message.get("username"), message.get("channel"))
+        elif message_event == "perf_test":
+            await self.handle_perf_ping(message)
 
     async def start_listener(self):
         """Method to take cached messages and batch upload them to the database if conditions are met"""
@@ -235,18 +260,61 @@ class ConnectionManager:
                 time_since_last_message_upload > CACHED_MESSAGE_UPLOAD_TIMER
                 and num_messages
             ):
-                print(
-                    f"Upload cache triggered by: {num_messages = }, {time_since_last_message_upload = }"
+                self.logger.info(
+                    f"Upload cache triggered by cache size: {num_messages = }, {time_since_last_message_upload = }, {len(self.active_connections) = })"
                 )
                 await self.upload_cached_messages()
             await asyncio.sleep(1)
 
     async def upload_cached_messages(self):
         """Batch inserts all cached messages into database and resets upload timer"""
-        print("Uploading cached messages")
         if self.db.batch_insert_messages(self.message_cache):
             self.message_cache.clear()
             self.time_last_message_backup = round(time.time())
         else:
             # TODO log error on failure to avoid losing cached messages
             pass
+
+    async def handle_perf_ping(self, message: dict):
+        """Gather required performance data and send it to the monitor"""
+        try:
+            username = message.get("username")
+            perf_test_id = message.get("perf_test_id")
+            active_connections = len(self.active_connections)
+            cpu_load = psutil.cpu_percent(interval=None, percpu=True)
+            memory_usage = psutil.virtual_memory().percent
+            # Calculate the time since the messave volume counter was set to 0, used to estimate a volume per second value. If the time interval is too low, set it to 0.25s to prevent excessively high numbers caused by dividing by values close to 0.
+            mv_time_interval = time.perf_counter() - self.message_volume_timer
+            if mv_time_interval < 0.25:
+                mv_time_interval = 0.25
+
+            # Update the EMA for message volume
+            self.ema_message_volume = (
+                self.alpha * (self.message_volume/mv_time_interval) + (1 - self.alpha) * self.ema_message_volume
+            )
+
+            # Calculate adjusted message rate
+            # mv_adjusted = self.ema_message_volume
+
+            response_message = {
+                "event": "perf_test",
+                "perf_test_id" : perf_test_id,
+                "cpu_load" : cpu_load,
+                "memory_usage" : memory_usage,
+                "active_connections" : active_connections,
+                "message_volume": self.message_volume,
+                "mv_period": time.perf_counter() - self.message_volume_timer,
+                # "mv_adjusted": round(self.message_volume / (time.perf_counter() - self.message_volume_timer)),
+                "mv_adjusted": round(self.ema_message_volume)
+            }
+            websocket: WebSocket = self.active_connections.get(username).get("ws")
+            self.message_volume = 0
+            self.message_volume_timer = time.perf_counter()
+            self.logger.debug(f"Sending perf response: {response_message}")
+            await websocket.send_text(json.dumps(response_message))
+        except Exception as e:
+            self.logger.warning(f"Error sending perf response: {e}")
+
+
+
+
