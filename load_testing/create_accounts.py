@@ -77,12 +77,12 @@ async def process_account(session, username: str, password: str, tokens: list):
     """Processes a single account to get the token and handles exceptions."""
     try:
         token = await get_auth_token(session, username, password)
-        tokens.append(f"Bearer {token.get('access_token')}")
+        tokens.append(token.get('access_token'))
     except Exception as e:
         try:
             await asyncio.sleep(1)
             token = await get_auth_token(session, username, password)
-            tokens.append(f"Bearer {token.get('access_token')}")
+            tokens.append(token.get('access_token'))
         except:
             print(f"{username=}, {password=}, {e}")
 
