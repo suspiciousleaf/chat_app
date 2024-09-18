@@ -14,16 +14,14 @@ if __name__ == "__main__":
 # TODO Verify token expiry is working as expected
 
 #! Server
-# TODO Read DDIA on mssage encoding and decoding, protobuff. Could send messages faster over ws
-# TODO Check ws login event loop thread logic and behaviour
-# TODO check disconnect logic
-# TODO Message history can exceed max message size and cause disconnect, only load most recent 50 messages
+# TODO Read DDIA on message encoding and decoding, protobuff. Could send messages faster over ws
 # TODO Button or trigger to load older message history?
 # TODO Add a max message character limit
-# Connections are failing due to a TimeOutError, still happens when message history is commented out
+# Errors sending messages to websockets that have disconnected, still present in docker logs
+
 
 #! Database
-# TODO Add indexes
+#! TODO Add indexes
 
 #! General
 # TODO Add proper logging
@@ -40,13 +38,6 @@ if __name__ == "__main__":
 #! Hosted
 
 #! Load testing
-# TODO Create log out and shut down logic after actions completed
-# TODO Run message listener in async loop
-# TODO Change channels from hardcoded to dynamic
-# TODO Add methods to join and leave groups
+# TODO Add flame graph profiling to server
 # ? Create endpoint to delete account, so accounts can be created, used, and deleted dynamically during testing
 
-#! WIP
-# TODO Get Artillery to auth and connect with multiple user accounts, test local and then on VPS"
-#! Comment out everything apart from websocket connect and see if timeout issue still occurs
-#! Add indexes to database
