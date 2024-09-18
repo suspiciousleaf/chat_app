@@ -21,7 +21,7 @@ def run():
         port=8000,
         log_level="warning",
         reload=False,
-        reload_includes=["*.py", ".env"],
+        # reload_includes=["*.py", ".env"],
     )
     server = Server(config)
     server.run()
