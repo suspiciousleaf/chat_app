@@ -2,12 +2,14 @@ import logging
 from load_testing.load_tester import LoadTester
 
 
-NUMBER_OF_TEST_ACCOUNTS = 100
+NUMBER_OF_TEST_ACCOUNTS = 250
 
-NUM_ACTIONS = 20
+NUM_ACTIONS = 30
 
-CONNECTION_DELAY = None
+CONNECTION_DELAY = 0.1
+# CONNECTION_DELAY = None
 
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 logger = logging.getLogger('LoadTester')
 handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
