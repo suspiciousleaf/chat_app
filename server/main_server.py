@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 import json
 import datetime
 import asyncio
+import logging
 
 # from pathlib import Path
 # from os import getenv
@@ -28,6 +29,13 @@ from routers.auth import get_current_active_user, get_current_user
 from services.db_manager import db
 from services.connection_manager import ConnectionManager
 
+logger = logging.getLogger('Server')
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter.datefmt = '%H:%M:%S'
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -95,7 +103,7 @@ def get_filepath():
     return db.read_db_filepath()
 
 
-connection_man = ConnectionManager(db)
+connection_man = ConnectionManager(logger, db)
 
 
 class AccountCreate(BaseModel):
@@ -141,5 +149,10 @@ async def websocket_endpoint(websocket: WebSocket):
         await connection_man.disconnect(active_user.username)
     except asyncio.CancelledError:
         await connection_man.disconnect(active_user.username)
+    except RuntimeError as e:
+        if str(e) == 'WebSocket is not connected. Need to call "accept" first.':
+            await connection_man.disconnect(active_user.username)
+        else:
+            logger.warning(f"Websocket endpoint {type(e).__name__}: {e}")
     except Exception as e:
-        print(e)
+        logger.warning(f"Websocket endpoint Exception: {type(e).__name__}: {e}")
