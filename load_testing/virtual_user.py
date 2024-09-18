@@ -1,8 +1,10 @@
-import requests
+import aiohttp
 import asyncio
 import json
 import random
 import traceback
+from logging import Logger
+from websockets import ConnectionClosedOK
 
 from os import getenv
 
@@ -25,22 +27,31 @@ MAX_MESSAGE_LENGTH = 10
 class WebsocketConnectionError(Exception):
     def __init__(self, message):
         # TODO Flesh this out
-        print(message)
+        self.logger.warning(message)
 
 
 class User:
     def __init__(
-        self, bearer_token: str, actions: int, test_channels: list, username: str = None, password: str = None, 
+        self, logger: Logger,  account: dict, actions: int = 0, test_channels: list = [],  
     ):
+        self.logger: Logger = logger
         self.actions: int = actions
         self.connection_active: bool = False
         self.test_channels: list = test_channels
         self.channels: list = []
-        self.bearer_token = {"access_token": bearer_token.replace("Bearer ", "")}
-        # self.bearer_token: dict = self.get_auth_token()
-        self.client_websocket: MyWebSocket = MyWebSocket(
-            self.bearer_token)#, self.username)
+        self.account = account
+        self.username = self.account.get("username")
+        self.logger.debug(self.account)
         self.listener_task = None
+        
+    async def authorize_account(self):
+        if "access_token" in self.account:
+            self.bearer_token = self.account.get("access_token")
+        else:
+            self.username = self.account.get("username")
+            self.password = self.account.get("password")
+            self.bearer_token = await self.get_auth_token()
+        self.logger.debug(f"{self.username}: Bearer token acquired: {self.bearer_token}")
 
     async def connect_websocket(self, max_retries=5, retry_delay=1):
         """Open websocket connection with retry mechanism"""
@@ -48,31 +59,33 @@ class User:
             try:
                 await self.client_websocket.connect()
                 self.connection_active = True
-                self.listener_task = asyncio.create_task(self.listen_for_messages())
+                if not self.listener_task:
+                    self.listener_task = asyncio.create_task(self.listen_for_messages())
                 return
             except Exception as e:
-                print(f"Connection attempt {attempt + 1} failed: {e.args=}, {e.__class__=}")
-                traceback.print_tb(e.__traceback__)
+                self.logger.info(f"Connection attempt {attempt + 1} failed: {e.args=}, {e.__class__=}")
+                # traceback.print_tb(e.__traceback__)
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
         raise WebsocketConnectionError(
             f"Failed to connect after {max_retries} attempts"
         )
 
-    def get_auth_token(self) -> dict | None:
+    async def get_auth_token(self) -> dict | None:
         """Submits username and password to get a bearer token from the server"""
         try:
             payload = {
                 "username": self.username,
                 "password": self.password,
             }
-            response = requests.post(f"{URL}{LOGIN_ENDPOINT}", data=payload)
-            response.raise_for_status()
-            # print(f"{self.username}: Auth token received!")
-            return response.json()
-
+            async with aiohttp.request('POST', f"{URL}{LOGIN_ENDPOINT}", data=payload) as response:
+                response.raise_for_status()
+                self.logger.debug(f"{self.username}: Auth token received!")
+                return await response.json()
         except Exception as e:
-            print(f"{self.username}: Auth token request failed: {e}")
+            self.logger.info(f"{self.username}: Auth token request failed, retrying: {e}")
+            await asyncio.sleep(2)
+            return await self.get_auth_token()
 
     async def join_channel(self, channel_name):
         """Join the specified channel"""
@@ -80,42 +93,58 @@ class User:
             "event": "add_channel",
             "channel": channel_name,
         }
-        await self.client_websocket.send_message(formatted_message)
+        await self.send_message(formatted_message)
+
+    async def send_message(self, message):
+        if self.performing_actions:
+            try:
+                await self.client_websocket.send_message(message)
+            except ConnectionClosedOK:
+                self.performing_actions = False
+            except ConnectionError:
+                await self.connect_websocket()
+                await self.send_message(message)
+            except Exception as e:
+                self.logger.info(f"User.send_message() {type(e).__name__}: {e}")
 
 
     async def leave_channel(self, channel_name):
         """Leave the specified channel"""
 
         formatted_message = {"event": "leave_channel", "channel": channel_name}
-        await self.client_websocket.send_message(formatted_message)
+        await self.send_message(formatted_message)
         self.channels.remove(channel_name)
 
     async def start_activity(self):
-        # print("Beginning actions")
-        try:
-            for i in range(self.actions):
+        # self.logger.debug("Beginning actions")
+        self.performing_actions = True
+        await asyncio.sleep(5)
+        for i in range(self.actions):
+            try:
                 await self.choose_action(i)
-                await asyncio.sleep(2)
-        except Exception as e:
-            print(f"Error during activity: {e}")
-        # finally:
-        #     print("Actions completed")
+                # await asyncio.sleep(random.randint(10, 50)/10) # Wait between 1 and 5 seconds before the next action
+                await asyncio.sleep(6)
+            except Exception as e:
+                self.logger.info(f"Error during activity: {type(e).__name__}: {e}")
+        self.performing_actions = False
+        #     self.logger.debug("Actions completed")
 
     async def choose_action(self, i):
         """Pick which action to perform"""
         # If user has no channel subscriptions, subscribe to a random selection
         if not self.channels:
             channels_to_add = random.sample(self.test_channels, random.randint(2, 6))
+            self.logger.debug(f"No channel subscriptions, adding: {channels_to_add=}")
             for channel in channels_to_add:
                 await self.join_channel(channel)
         # Generate a random number to decide the next action
         random_value = random.randint(0, 99)
         # 94% chance to send a message
         if random_value >= 6:
-            # print(f"Action {i+1}. RandInt({random_value}). Sending random message")
+            # self.logger.debug(f"Action {i+1}. RandInt({random_value}). Sending random message")
             await self.send_random_message()
         # 3% chance to join a new channel
-        elif 5 >= random_value >= 3 and len(self.channels) <= 11:
+        elif 5 >= random_value >= 3 and len(self.channels) < min(len(self.test_channels), 11):
             channel_name = random.choice(
                 [
                     channel
@@ -123,12 +152,12 @@ class User:
                     if channel not in self.channels
                 ]
             )
-            # print(f"Action {i+1}. RandInt({random_value}). Joining channel: {channel_name}")
+            # self.logger.debug(f"Action {i+1}. RandInt({random_value}). Joining channel: {channel_name}")
             await self.join_channel(channel_name)
         # 3% chance to leave a channel
         elif len(self.channels) >= 4:
             channel_name = random.choice(self.channels)
-            # print(f"Action {i+1}. RandInt({random_value}). Leaving channel: {channel_name}")
+            # self.logger.debug(f"Action {i+1}. RandInt({random_value}). Leaving channel: {channel_name}")
             await self.leave_channel(channel_name)
 
     async def send_random_message(self):
@@ -141,7 +170,7 @@ class User:
                     random.sample(sample_words, random.randint(1, MAX_MESSAGE_LENGTH))
                 ),
             }
-            await self.client_websocket.send_message(message)
+            await self.send_message(message)
 
     async def logout(self):
         """Close the websocket connection and perform cleanup"""
@@ -154,34 +183,50 @@ class User:
                 except asyncio.CancelledError:
                     pass  # This is expected
             await self.client_websocket.close()
-        # print("Logged out and disconnected")
+        # self.logger.debug("Logged out and disconnected")
 
 
     async def listen_for_messages(self):
         while self.connection_active:
             try:
-                message_str = await self.client_websocket.websocket.recv()
-                message: dict = json.loads(message_str)
-                if message is not None:
-                    event_type = message.get("event")
-                    if event_type == "channel_subscriptions":
-                        new_channels = message.get("data")
-                        if isinstance(new_channels, list):
-                            self.channels.extend(new_channels)
+                # message_str = await self.client_websocket.websocket.recv()
+                message_str = await self.client_websocket.receive_message()
+                if message_str is not None:
+                    message: dict = json.loads(message_str)
+                    if message is not None:
+                        event_type = message.get("event")
+                        if event_type == "channel_subscriptions":
+                            new_channels = message.get("data")
+                            if isinstance(new_channels, list):
+                                self.channels.extend(new_channels)
             except asyncio.CancelledError:
                 break  
+            except ConnectionClosedOK:
+                await self.logout()
             except Exception as e:
-                if self.connection_active:
-                    print(f"Error receiving message: {e}")
-                    traceback.print_tb(e.__traceback__)
-                else:
-                    break 
+                await self.logout()
+                break
+                # if self.connection_active:
+                #     self.logger.info(f"Error receiving message: {e}")
+                #     # traceback.print_tb(e.__traceback__)
+                # else:
+                #     break 
+
 
     async def run(self):
+        """Initiate behaviour - connect to websocket and start programmed actions"""
+        await self.authorize_account()
+        self.client_websocket: MyWebSocket = MyWebSocket(
+            self.logger, 
+            {"access_token": self.bearer_token.get("access_token")}, 
+            self.username)
         try:
             await self.connect_websocket()
             await self.start_activity()
         except Exception as e:
-            print(f"Error during user run: {e}")
+            self.logger.info(f"Error during user run: {e}")
         finally:
             await self.logout()
+
+    def __repr__(self):
+        return f"User({self.actions=}, {self.username=}"
