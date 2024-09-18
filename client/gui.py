@@ -69,7 +69,7 @@ MAX_CHANNELS = 12
 # }
 
 
-logger = logging.getLogger('LoadTester')
+logger = logging.getLogger('Client')
 handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 formatter.datefmt = '%H:%M:%S'
