@@ -1,6 +1,6 @@
 import asyncio
 import websockets
-from websockets import WebSocketClientProtocol
+from websockets import WebSocketClientProtocol, ConnectionClosedOK, ConnectionClosedError
 import time
 import json
 from os import getenv
@@ -8,10 +8,6 @@ from dotenv import load_dotenv
 import traceback
 from logging import Logger
 
-import logging
-logger = logging.getLogger('websockets')
-logger.setLevel(logging.WARNING)
-logger.addHandler(logging.StreamHandler())
 
 load_dotenv()
 
@@ -27,48 +23,88 @@ class MyWebSocket:
         self.websocket: WebSocketClientProtocol | None = None
         self.auth_token: dict = auth_token
         self.username = username
+        self.connected = False
 
     async def connect(self):
-        try:
-            extra_headers = {
-                "Authorization": f"Bearer {self.auth_token.get('access_token', '')}"
-            }
-            self.websocket = await websockets.connect(
-                self.websocket_url,
-                ping_interval=20,
-                ping_timeout=10,
-                open_timeout=20,
-                extra_headers=extra_headers,
-            )
-        except websockets.exceptions.InvalidStatusCode as e:
-            print(f"Invalid status code: {e.status_code}")
-        except TimeoutError as e:
-            # logger.warning(f"{self.username + ': ' if self.username else ''}A timeout error occurred: {e}")
-            # logger.warning(f"TimeoutError: {e.args=}, {e.__class__=}")
-            # traceback.print_tb(e.__traceback__)
-            pass
-        except Exception as e:
-            logger.warning(e, exc_info=True)
-            print(
-                f"{self.username + ': ' if self.username else ''}An error occurred: {str(e)}"
-            )
+        while not self.connected:
+            try:
+                extra_headers = {
+                    "Authorization": f"Bearer {self.auth_token.get('access_token', '')}"
+                }
+                self.websocket = await websockets.connect(
+                    self.websocket_url,
+                    # ping_interval=20,
+                    ping_timeout=None,
+                    open_timeout=None,
+                    extra_headers=extra_headers,
+                )
+                self.connected = True
+            except websockets.exceptions.InvalidStatusCode as e:
+                self.logger.debug(f"Invalid status code: {e.status_code}")
+            except ConnectionClosedError as e:
+                self.logger.info(f"Connection was closed unexpectedly: {e}")
+            except ConnectionResetError as e:
+                self.logger.info(f"Connection reset by remote host: {e}")
+            except TimeoutError as e:
+                pass
+            except Exception as e:
+                self.logger.info(
+                    f"{self.username + ': ' if self.username else ''}An error occurred: {type(e).__name__}: {e}"
+                )
 
-        if not self.websocket:
-            print(
-                f"{self.username + ': ' if self.username else ''}Connection failed. Reconnecting in 5 seconds..."
-            )
-            await asyncio.sleep(5)
-            await self.connect()
+            if not self.connected:
+                self.logger.debug(
+                    f"{self.username + ': ' if self.username else ''}Connection failed. Reconnecting in 5 seconds..."
+                )
+                await asyncio.sleep(5)
+
+
 
     async def send_message(self, message: dict):
-        await self.websocket.send(json.dumps(message))
+        """Send message via WebSocket."""
+        if not self.connected:
+            # self.logger.info("Cannot send message, WebSocket is not connected.")
+            raise ConnectionError
+        try:
+            await self.websocket.send(json.dumps(message))
+        except websockets.exceptions.ConnectionClosedOK:
+            self.connected = False
+            raise websockets.exceptions.ConnectionClosedOK
+        except websockets.exceptions.ConnectionClosedError as e:
+            self.logger.debug(f"Connection closed unexpectedly: {e}. Reconnecting...")
+            self.connected = False
+            await self.connect() 
+            await self.send_message(message) 
+        except Exception as e:
+            self.logger.warning(f"An error occurred while sending message: {type(e).__name__}: {e}")
+
+    async def receive_message(self):
+        """Receive messages from the WebSocket"""
+        if not self.connected:
+            # self.logger.info("Cannot receive message, WebSocket is not connected.")
+            return 
+        try:
+            return await self.websocket.recv()
+        except websockets.exceptions.ConnectionClosedError as e:
+            self.logger.debug(f"Connection closed unexpectedly: {e}. Reconnecting...")
+            self.connected = False
+            await self.connect()  
+        except ConnectionClosedOK as e:
+            raise ConnectionClosedOK(*e.args)
+        except Exception as e: 
+            self.logger.info(f"An error occurred while receiving message: {type(e).__name__}: {e}")
 
     async def close(self):
-        """Close the websocket connection if it's open"""
-        if self.websocket:
+        """Close the WebSocket connection if it's open."""
+        if self.websocket and self.connected:
             try:
                 await self.websocket.close()
+                # await asyncio.sleep(1)
+                self.logger.debug(f"{self.username}: WebSocket connection closed.")
+            except ConnectionClosedError as e:
+                self.logger.debug(f"Connection closed unexpectedly during closure: ConnectionClosedError: {e}")
             except Exception as e:
-                print(f"An error occurred while closing the WebSocket: {e}")
+                self.logger.info(f"An error occurred while closing the WebSocket: {type(e).__name__}: {e}")
             finally:
                 self.websocket = None
+                self.connected = False
