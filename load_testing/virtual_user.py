@@ -32,10 +32,11 @@ class WebsocketConnectionError(Exception):
 
 class User:
     def __init__(
-        self, logger: Logger,  account: dict, actions: int = 0, test_channels: list = [],  
+        self, logger: Logger,  account: dict, actions: int = 0, delay_between_actions: int = 2, test_channels: list = [],  
     ):
         self.logger: Logger = logger
         self.actions: int = actions
+        self.delay_between_actions = delay_between_actions
         self.connection_active: bool = False
         self.test_channels: list = test_channels
         self.channels: list = []
@@ -123,7 +124,7 @@ class User:
             try:
                 await self.choose_action(i)
                 # await asyncio.sleep(random.randint(10, 50)/10) # Wait between 1 and 5 seconds before the next action
-                await asyncio.sleep(6)
+                await asyncio.sleep(self.delay_between_actions)
             except Exception as e:
                 self.logger.info(f"Error during activity: {type(e).__name__}: {e}")
         self.performing_actions = False
