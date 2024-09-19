@@ -32,12 +32,13 @@ with open("load_testing/accounts.json", "r") as f:
 
 
 class LoadTester:
-    def __init__(self, logger: Logger, num_accounts, num_actions, connection_delay=None):
+    def __init__(self, logger: Logger, num_accounts, num_actions, delay_between_actions=2, connection_delay=None):
         self.logger: Logger = logger
         self.num_accounts = num_accounts
         self.test_account_pool: list = accounts
         self.active_accounts = []
         self.num_actions = num_actions
+        self.delay_between_actions = delay_between_actions
         self.connection_delay: float | None = connection_delay
         self.logger.info(f"Starting: {self}")
         self.monitor: Monitor = Monitor(self.logger, account={"username":MONITOR_USER, "password":MONITOR_PASS})
@@ -46,7 +47,7 @@ class LoadTester:
         return f"LoadTester({self.num_accounts=}, {self.num_actions=}, {self.connection_delay=}, {test_channels=})"
 
     async def create_and_run_user(self, account):
-        user = User(self.logger, account, actions=self.num_actions, test_channels=test_channels)
+        user = User(self.logger, account, actions=self.num_actions, delay_between_actions=self.delay_between_actions, test_channels=test_channels)
         self.logger.debug(f"Created: {user}")
         self.active_accounts.append(user)
         try:
@@ -68,10 +69,10 @@ class LoadTester:
             tasks.append(task)
             if self.connection_delay:
                 delay = self.connection_delay
-                if i > len(accounts_to_use) / 2:
-                    delay *= 2
+                # if i > len(accounts_to_use) / 2:
+                #     delay *= 2
                 await asyncio.sleep(self.connection_delay)
-        # Await completion of all load tasks, but not the monitor as its listener task runs indefinitely
+        # Await completion of all load tasks, but not the monitor as its listener task runs indefinitely. User tasks stop their listener tasks automatically when they have completed their actions so this doesn't hinder gather.
         await asyncio.gather(*tasks[1:])
         await self.monitor.logout()
 
@@ -111,6 +112,7 @@ class LoadTester:
         if self.monitor.perf_data:
             self.logger.info("Raw data saved to: most_recent_perf_raw_data.json")
 
+            # Rolling save of raw data from most recent run so it can be checked in case of exceptions below
             with open("most_recent_perf_raw_data.json", "w") as f:
                 json.dump(self.monitor.perf_data, f)
 
@@ -135,54 +137,54 @@ class LoadTester:
             fig, axs = plt.subplots(2, 2, figsize=(12, 12))
             
             # First subplot: CPU Load vs Latency
-            axs[0, 0].scatter(cpu_load, message_volume)
+            axs[0, 0].scatter(cpu_load, message_volume, color='#008fde')
             axs[0, 0].set_xlabel('CPU Load (%)')
-            axs[0, 0].set_ylabel('Message Volume', color='blue')
-            axs[0, 0].tick_params(axis='y', labelcolor='blue')
+            axs[0, 0].set_ylabel('Message Volume', color='#008fde')
+            axs[0, 0].tick_params(axis='y', labelcolor='#008fde')
             # axs[0, 0].set_title('CPU Load vs Latency')
 
             # Create a second y-axis on the right
             ax1 = axs[0, 0].twinx()
 
             # Plot message_volume vs cpu_load on the right y-axis
-            ax1.scatter(cpu_load, latency, color='red', label='Latency (s)')
-            ax1.set_ylabel('Latency (s)', color='red')
-            ax1.tick_params(axis='y', labelcolor='red')
+            ax1.scatter(cpu_load, latency, color='#a16ae8', label='Latency (s)')
+            ax1.set_ylabel('Latency (s)', color='#a16ae8')
+            ax1.tick_params(axis='y', labelcolor='#a16ae8')
 
             # Second subplot: Active Users vs Message Volume
-            axs[0, 1].scatter(perf_test_id, message_volume, color='blue', label='Message Volume')
+            axs[0, 1].scatter(perf_test_id, message_volume, color='#008fde', label='Message Volume')
             axs[0, 1].set_xlabel('perf_test_id')
-            axs[0, 1].set_ylabel('Message Volume', color='blue')
-            axs[0, 1].tick_params(axis='y', labelcolor='blue')
+            axs[0, 1].set_ylabel('Message Volume', color='#008fde')
+            axs[0, 1].tick_params(axis='y', labelcolor='#008fde')
 
             # Create a second y-axis on the right
             ax2 = axs[0, 1].twinx()
 
             # Plot cpu_load vs perf_test_id on the right y-axis
-            ax2.scatter(perf_test_id, cpu_load, color='red', label='CPU Load')
-            ax2.set_ylabel('CPU Load (%)', color='red')
-            ax2.tick_params(axis='y', labelcolor='red')
+            ax2.scatter(perf_test_id, cpu_load, color='#a16ae8', label='CPU Load')
+            ax2.set_ylabel('CPU Load (%)', color='#a16ae8')
+            ax2.tick_params(axis='y', labelcolor='#a16ae8')
 
-            # Optional: add a title to the subplot
-            axs[0, 1].set_title('Performance Test: Message Volume and CPU Load')
+            # # Optional: add a title to the subplot
+            # axs[0, 1].set_title('Performance Test: Message Volume and CPU Load')
 
             # Third subplot: Active Users vs CPU Load
-            axs[1, 0].scatter(active_users, message_volume)
+            axs[1, 0].scatter(active_users, message_volume, color='#008fde')
             axs[1, 0].set_xlabel('Active Users')
-            axs[1, 0].set_ylabel('Message Volume', color='blue')
-            axs[1, 0].tick_params(axis='y', labelcolor='blue')
+            axs[1, 0].set_ylabel('Message Volume', color='#008fde')
+            axs[1, 0].tick_params(axis='y', labelcolor='#008fde')
             # axs[1, 0].set_title('CPU Load vs Message Volume')
 
             # Create a second y-axis on the right
             ax3 = axs[1, 0].twinx()
 
             # Plot cpu_load vs perf_test_id on the right y-axis
-            ax3.scatter(active_users, cpu_load, color='red', label='CPU Load (%)')
-            ax3.set_ylabel('CPU Load (%)', color='red')
-            ax3.tick_params(axis='y', labelcolor='red')
+            ax3.scatter(active_users, cpu_load, color='#a16ae8', label='CPU Load (%)')
+            ax3.set_ylabel('CPU Load (%)', color='#a16ae8')
+            ax3.tick_params(axis='y', labelcolor='#a16ae8')
 
             # Fourth subplot: Message Volume vs Latency
-            axs[1, 1].scatter(message_volume, latency)
+            axs[1, 1].scatter(message_volume, latency, color='#008fde')
             axs[1, 1].set_xlabel('Message Volume')
             axs[1, 1].set_ylabel('Latency (s)')
             # axs[1, 1].set_title('Message Volume vs Latency')
@@ -192,7 +194,7 @@ class LoadTester:
             # poly_func = np.poly1d(poly_coeffs)
             # x = np.linspace(min(active_users), max(active_users), 100)
             # y = poly_func(x)
-            # axs[1].plot(x, y, color='red', label='Best Fit Curve') 
+            # axs[1].plot(x, y, color='#a16ae8', label='Best Fit Curve') 
 
             #! axs[1].legend()
 
@@ -211,7 +213,7 @@ class LoadTester:
             # y = poly_func(x)
 
             # # Plot the best-fit curve on the first subplot
-            # axs[0].plot(x, y, color='red', label='Best Fit Curve')
+            # axs[0].plot(x, y, color='#a16ae8', label='Best Fit Curve')
             # axs[0].legend()
 
             # # Second subplot: Active Users vs Log(Message Volume)
@@ -229,16 +231,19 @@ class LoadTester:
             # y_log_fit = log_poly_func(x)
 
             # # Plot the best-fit line on the second subplot
-            # axs[1].plot(x, y_log_fit, color='red', label=f'Best Fit Line (y = {log_poly_coeffs[0]:.2f}x + {log_poly_coeffs[1]:.2f})')
+            # axs[1].plot(x, y_log_fit, color='#a16ae8', label=f'Best Fit Line (y = {log_poly_coeffs[0]:.2f}x + {log_poly_coeffs[1]:.2f})')
             # axs[1].legend()
 
 
             # Adjust layout and display both plots
             plt.tight_layout()
             current_date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            file_name = f"{current_date}-{self.num_accounts=},{self.num_actions=},{self.connection_delay=}"
+            file_name = f"{current_date}-{self.num_accounts=},{self.num_actions=},{self.delay_between_actions=},{self.connection_delay=}"
             # Save the figure
             plt.savefig(f'perf_data/{file_name}.png', dpi=300)  # Save as PNG with high resolution (300 dpi)
+
+            with open(f"perf_data/{file_name}.json", "w") as f:
+                json.dump(self.monitor.perf_data, f)
 
             plt.show()
         else:
