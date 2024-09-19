@@ -37,7 +37,7 @@ Current latencies are approximately double the desired values.
 
  ![Graphs](https://i.imgur.com/fMh0V5v.png)
  [Source](https://i.imgur.com/fMh0V5v.png)
- 
+
 The graphs show some key details. The first graph shows that latency correlates with CPU load, rising slightly above 50% load, with some data points spiking significantly above 70% load. Message volume also correlates with CPU load. Message volume plateaus around 6500 per second, which can be sustained at approx 50% CPU load.  
 
 The second graph shows that CPU usage starts at around 70% as soon as accounts start authenticating, indicating (as expected) a high CPU load caused by the auth process. This load increases as the test goes on and message volume picks up, peaking around 100% as peak user account numbers are reached. Once the authentication has been completed, peak message volume is sustained with 50-85% CPU load. As users complete their actions and start disconnecting, CPU load decrease correlates perfectly with reducing message volume as there is no additional auth load. 
@@ -114,5 +114,7 @@ If these are achieved, sustain higher account activity while maintaining accepta
 - Mitigation: Continuous monitoring and iterative improvement
 - Risk: Protobuf implementation will break compatibility with old client versions
 - Mitigation: Client update will need to be implemented and rolled out at the same time as the server update
+- Risk: Protobuf will make serialized messages unreadable
+- Mitigation: Careful logging and incremental implementation to avoid errors should avoid most issues
 
 
