@@ -32,14 +32,15 @@ with open("load_testing/accounts.json", "r") as f:
 
 
 class LoadTester:
-    def __init__(self, logger: Logger, num_accounts, num_actions, delay_between_actions=2, connection_delay=None):
+    def __init__(self, logger: Logger, num_accounts: int, num_actions: int, delay_before_actions: int = 0, delay_between_actions: int = 2, connection_delay: float=0):
         self.logger: Logger = logger
-        self.num_accounts = num_accounts
+        self.num_accounts: int = num_accounts
         self.test_account_pool: list = accounts
-        self.active_accounts = []
-        self.num_actions = num_actions
-        self.delay_between_actions = delay_between_actions
-        self.connection_delay: float | None = connection_delay
+        self.active_accounts: list = []
+        self.num_actions: int = num_actions
+        self.delay_before_actions: int = delay_before_actions
+        self.delay_between_actions: int = delay_between_actions
+        self.connection_delay: float = connection_delay
         self.logger.info(f"Starting: {self}")
         self.monitor: Monitor = Monitor(self.logger, account={"username":MONITOR_USER, "password":MONITOR_PASS})
 
@@ -47,7 +48,7 @@ class LoadTester:
         return f"LoadTester({self.num_accounts=}, {self.num_actions=}, {self.connection_delay=}, {test_channels=})"
 
     async def create_and_run_user(self, account):
-        user = User(self.logger, account, actions=self.num_actions, delay_between_actions=self.delay_between_actions, test_channels=test_channels)
+        user = User(self.logger, account, actions=self.num_actions, delay_before_actions=self.delay_before_actions, delay_between_actions=self.delay_between_actions, test_channels=test_channels)
         self.logger.debug(f"Created: {user}")
         self.active_accounts.append(user)
         try:
@@ -118,8 +119,8 @@ class LoadTester:
 
             for data_point in self.monitor.perf_data.values():
                 try:
-                    # 0 values must be ignored to calculate best fit curve
-                    if not data_point["mv_adjusted"] or not data_point["active_connections"] or max(data_point["cpu_load"]) < 3:
+                    # # 0 values must be ignored to calculate best fit curve
+                    if max(data_point["cpu_load"]) < 3 or not data_point["active_connections"]:# or not data_point["mv_adjusted"]:
                         continue
                     latency.append(data_point["latency"])
                     perf_test_id.append(data_point["perf_test_id"])
@@ -183,11 +184,26 @@ class LoadTester:
             ax3.set_ylabel('CPU Load (%)', color='#a16ae8')
             ax3.tick_params(axis='y', labelcolor='#a16ae8')
 
-            # Fourth subplot: Message Volume vs Latency
-            axs[1, 1].scatter(message_volume, latency, color='#008fde')
-            axs[1, 1].set_xlabel('Message Volume')
+
+            # Convert message_volume and latency to NumPy arrays
+            message_volume = np.array(message_volume)
+            latency = np.array(latency)
+
+            num_bins = 10
+            bins = np.linspace(min(message_volume), max(message_volume), num_bins + 1)  # num_bins + 1 to account for bin edges
+
+
+            latency_groups = [latency[(message_volume >= bins[i]) & (message_volume < bins[i+1])] for i in range(num_bins)]
+            latency_groups[-1] = latency[(message_volume >= bins[-2]) & (message_volume <= bins[-1])]
+
+
+            axs[1, 1].boxplot(latency_groups, patch_artist=True)
+
+            axs[1, 1].set_xlabel('Message Volume Bins')
             axs[1, 1].set_ylabel('Latency (s)')
-            # axs[1, 1].set_title('Message Volume vs Latency')
+            axs[1, 1].set_ylim(0, 2.5)
+
+            axs[1, 1].set_xticklabels([f'{int(bins[i])}-{int(bins[i+1])}' for i in range(num_bins)], rotation=45)
 
             # # Best fit line
             # poly_coeffs = np.polyfit(active_users, message_volume, 2)  
@@ -234,11 +250,19 @@ class LoadTester:
             # axs[1].plot(x, y_log_fit, color='#a16ae8', label=f'Best Fit Line (y = {log_poly_coeffs[0]:.2f}x + {log_poly_coeffs[1]:.2f})')
             # axs[1].legend()
 
-
             # Adjust layout and display both plots
             plt.tight_layout()
-            current_date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            file_name = f"{current_date}-{self.num_accounts=},{self.num_actions=},{self.delay_between_actions=},{self.connection_delay=}"
+
+            percentile_90 = round(np.percentile(latency, 90)*1000)
+            percentile_95 = round(np.percentile(latency, 95)*1000)
+            percentile_99 = round(np.percentile(latency, 99)*1000)
+
+            print(f"90th: {percentile_90}ms")
+            print(f"95th: {percentile_95}ms")
+            print(f"99th: {percentile_99}ms")
+
+            current_date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+            file_name = f"{current_date},percentiles_ms=[{percentile_90},{percentile_95},{percentile_99}],accounts={self.num_accounts},actions={self.num_actions},delay_before_act={self.delay_before_actions},delay_between_act={self.delay_between_actions},delay_between_connections={self.connection_delay}"
             # Save the figure
             plt.savefig(f'perf_data/{file_name}.png', dpi=300)  # Save as PNG with high resolution (300 dpi)
 
