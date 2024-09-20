@@ -25,18 +25,19 @@ MAX_MESSAGE_LENGTH = 10
 
 
 class WebsocketConnectionError(Exception):
-    def __init__(self, message):
+    def __init__(self, logger, message):
         # TODO Flesh this out
-        self.logger.warning(message)
+        logger.warning(message)
 
 
 class User:
     def __init__(
-        self, logger: Logger,  account: dict, actions: int = 0, delay_between_actions: int = 2, test_channels: list = [],  
+        self, logger: Logger,  account: dict, actions: int = 0, delay_before_actions: int = 0, delay_between_actions: int = 2, test_channels: list = [],  
     ):
         self.logger: Logger = logger
         self.actions: int = actions
-        self.delay_between_actions = delay_between_actions
+        self.delay_before_actions: int = delay_before_actions
+        self.delay_between_actions: int = delay_between_actions
         self.connection_active: bool = False
         self.test_channels: list = test_channels
         self.channels: list = []
@@ -68,7 +69,7 @@ class User:
                 # traceback.print_tb(e.__traceback__)
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
-        raise WebsocketConnectionError(
+        raise WebsocketConnectionError(self.logger,
             f"Failed to connect after {max_retries} attempts"
         )
 
@@ -119,7 +120,7 @@ class User:
     async def start_activity(self):
         # self.logger.debug("Beginning actions")
         self.performing_actions = True
-        await asyncio.sleep(5)
+        await asyncio.sleep(self.delay_before_actions)
         for i in range(self.actions):
             try:
                 await self.choose_action(i)
