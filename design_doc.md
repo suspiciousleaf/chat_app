@@ -25,6 +25,8 @@ Current load testing parameters have been chosen to push the server slightly bey
 - Users: 250
 - Actions: 40
 - Delay between connections: 0.25s
+- Delay before action: 6s
+- Delay between actions: 6s
 
 ### Analysis
 
@@ -117,4 +119,12 @@ If these are achieved, sustain higher account activity while maintaining accepta
 - Risk: Protobuf will make serialized messages unreadable
 - Mitigation: Careful logging and incremental implementation to avoid errors should avoid most issues
 
+
+Implemented orjson isntead of json with messages sent as bytes of websocket - latency percentiles changes:
+without auth: 
+json   percentiles_ms=[203,246,311]
+orjson percentiles_ms=[170,199,240]
+with auth:
+json   percentiles_ms=[362,857,2132]
+orjson percentiles_ms=[309,492,1828]
 
