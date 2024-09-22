@@ -1,6 +1,7 @@
 import time
 import asyncio
 import json
+import orjson
 from pathlib import Path
 from os import getenv
 import datetime
@@ -76,7 +77,8 @@ class ConnectionManager:
         """Send a formatted message to the client with a list of channels that the user account is subscribed to"""
 
         info_message = {"event": "channel_subscriptions", "data": list(channels)}
-        await websocket.send_text(json.dumps(info_message))
+        # await websocket.send_text(json.dumps(info_message))
+        await websocket.send_bytes(orjson.dumps(info_message))
 
     async def send_channel_history(self, websocket: WebSocket, channels: set):
         """Send the message history for all subscribed channels to the client"""
@@ -90,7 +92,7 @@ class ConnectionManager:
 
         # history_message = {"event": "message history", "data": message_history}
 
-        # await websocket.send_text(json.dumps(history_message))
+        # await websocket.send_bytes(orjson.dumps(history_message))
 
 
         # Message history can exceed the maximum size for a websocket message (1MB), so the section below checks the size and breaks it down into multiple messages if it exceeds this limit. Currently not very performant as it serializes each message twice
@@ -101,10 +103,10 @@ class ConnectionManager:
         current_size = 0
 
         for message in message_history:
-            message_size = getsizeof(json.dumps(message))
+            message_size = getsizeof(orjson.dumps(message))
 
             if current_size + message_size > max_size:
-                await websocket.send_text(json.dumps(history_message))
+                await websocket.send_bytes(orjson.dumps(history_message))
                 # Reset for the next chunk
                 history_message["data"] = []
                 current_size = 0
@@ -114,7 +116,7 @@ class ConnectionManager:
 
         # Send any remaining messages
         if history_message["data"]:
-            await websocket.send_text(json.dumps(history_message))
+            await websocket.send_bytes(orjson.dumps(history_message))
 
     async def leave_channel(self, username: str, channel: str):
         """Remove channel subscription for username"""
@@ -181,14 +183,14 @@ class ConnectionManager:
     async def broadcast(self, message: dict):
         """Send message to all active connections that are subscribed to that channel"""
         channel = message.get("channel")
-        message_str = json.dumps(message)
+        message_raw = orjson.dumps(message)
         closed_connections = []
         tasks = []
 
         # Iterate over users and websockets subscribed to the channel
         for user, websocket in self.channel_subscribers.get(channel, {}).items():
             # Append the send_message task to the list of tasks
-            tasks.append(self.send_message(user, websocket, message_str, closed_connections))
+            tasks.append(self.send_message(user, websocket, message_raw, closed_connections))
         
         # Gather and await the results of the tasks
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -204,11 +206,11 @@ class ConnectionManager:
             await asyncio.gather(*disconnect_tasks, return_exceptions=True)
 
 
-    async def send_message(self, user: str, websocket: WebSocket, message_str: str, closed_connections: list):
+    async def send_message(self, user: str, websocket: WebSocket, message_raw: bytes, closed_connections: list):
         if user not in self.active_connections:
             return
         try:
-            await websocket.send_text(message_str)
+            await websocket.send_bytes(message_raw)
             if self.load_testing:
                 self.message_volume += 1
                 if self.message_volume_timer is None:
@@ -311,7 +313,7 @@ class ConnectionManager:
             self.message_volume = 0
             self.message_volume_timer = time.perf_counter()
             self.logger.debug(f"Sending perf response: {response_message}")
-            await websocket.send_text(json.dumps(response_message))
+            await websocket.send_bytes(orjson.dumps(response_message))
         except Exception as e:
             self.logger.warning(f"Error sending perf response: {e}")
 

@@ -1,6 +1,8 @@
 import aiohttp
 import asyncio
 import json
+from json import JSONDecodeError
+import orjson
 import random
 import traceback
 from logging import Logger
@@ -191,10 +193,15 @@ class User:
     async def listen_for_messages(self):
         while self.connection_active:
             try:
-                # message_str = await self.client_websocket.websocket.recv()
-                message_str = await self.client_websocket.receive_message()
-                if message_str is not None:
-                    message: dict = json.loads(message_str)
+                # message_raw = await self.client_websocket.websocket.recv()
+                message_raw = await self.client_websocket.receive_message()
+                if message_raw is not None:
+                    try:
+                        message: dict = orjson.loads(message_raw)
+                    except JSONDecodeError:
+                        self.logger.debug(f"JSONDecodeError: {message_raw}")
+                    except Exception as e:
+                        self.logger.info(f"{type(e).__name__}: {e}")
                     if message is not None:
                         event_type = message.get("event")
                         if event_type == "channel_subscriptions":

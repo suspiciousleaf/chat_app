@@ -8,6 +8,7 @@ from fastapi import (
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 import json
+import orjson
 import datetime
 import asyncio
 import logging
@@ -142,17 +143,26 @@ async def websocket_endpoint(websocket: WebSocket):
         await connection_man.connect(websocket, active_user.username)
 
         while True:
-            message: dict = json.loads(await websocket.receive_text())
+            try:
+                # message: dict = json.loads(await websocket.receive_text())
+                message: dict = orjson.loads(await websocket.receive_bytes())
+            except RuntimeError as e:
+                if str(e) == 'WebSocket is not connected. Need to call "accept" first.':
+                    pass
+                else:
+                    logger.warning(f"Websocket endpoint {type(e).__name__}: {e}")
+                await connection_man.disconnect(active_user.username)
+                
             message["username"] = active_user.username
             await connection_man.handle_incoming_message(message)
     except WebSocketDisconnect:
         await connection_man.disconnect(active_user.username)
     except asyncio.CancelledError:
         await connection_man.disconnect(active_user.username)
-    except RuntimeError as e:
-        if str(e) == 'WebSocket is not connected. Need to call "accept" first.':
-            await connection_man.disconnect(active_user.username)
-        else:
-            logger.warning(f"Websocket endpoint {type(e).__name__}: {e}")
+    # except RuntimeError as e:
+    #     if str(e) == 'WebSocket is not connected. Need to call "accept" first.':
+    #         await connection_man.disconnect(active_user.username)
+    #     else:
+    #         logger.warning(f"Websocket endpoint {type(e).__name__}: {e}")
     except Exception as e:
         logger.warning(f"Websocket endpoint Exception: {type(e).__name__}: {e}")

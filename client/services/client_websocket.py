@@ -3,6 +3,8 @@ import websockets
 from websockets import WebSocketClientProtocol, ConnectionClosedOK, ConnectionClosedError
 import time
 import json
+import orjson
+from orjson import JSONEncodeError 
 from os import getenv
 from dotenv import load_dotenv
 import traceback
@@ -66,7 +68,10 @@ class MyWebSocket:
             # self.logger.info("Cannot send message, WebSocket is not connected.")
             raise ConnectionError
         try:
-            await self.websocket.send(json.dumps(message))
+            # await self.websocket.send(json.dumps(message))
+            await self.websocket.send(orjson.dumps(message))
+        except JSONEncodeError as e:
+            self.logger.warning(f"JSONEncodeError: {e}: {message=}")
         except websockets.exceptions.ConnectionClosedOK:
             self.connected = False
             raise websockets.exceptions.ConnectionClosedOK

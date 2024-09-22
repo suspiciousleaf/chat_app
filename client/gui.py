@@ -5,6 +5,7 @@ from tkinter import ttk
 import asyncio
 import threading
 import json
+import orjson
 from json import JSONDecodeError
 import requests
 from re import split as re_split
@@ -400,10 +401,10 @@ class Chattr:
     async def listen_for_messages(self):
         while self.connection_active:
             try:
-                message_str = await asyncio.wait_for(
+                message_raw = await asyncio.wait_for(
                     self.client_websocket.websocket.recv(), timeout=1.0
                 )
-                message: dict = self.decode_received_message(message_str)
+                message: dict = self.decode_received_message(message_raw)
                 if message is not None:
                     # "messages" can contain event information such as channel subscriptions, or message data. This filters based on keys present.
                     event_type = message.get("event")
@@ -454,11 +455,12 @@ class Chattr:
         self.nb_tabs[channel].config(state="disabled")
         self.nb_tabs[channel].yview(tk.END)  # Auto-scroll to the bottom
 
-    def decode_received_message(self, message: str) -> dict:
+    def decode_received_message(self, message: bytes) -> dict:
         try:
-            return json.loads(message)
+            # return json.loads(message)
+            return orjson.loads(message)
         except JSONDecodeError:
-            print(f"Could not decode message: {message}")
+            print(f"Could not decode bytes message: {message}")
         except Exception as e:
             print(f"Unknown error occurred when decoding message: {e}")
 

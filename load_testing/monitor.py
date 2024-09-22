@@ -1,6 +1,8 @@
 import time
 import asyncio
 import json
+from json import JSONDecodeError
+import orjson
 import traceback
 from pprint import pprint
 from logging import Logger
@@ -71,10 +73,13 @@ class Monitor(User):
         while self.connection_active:
             try:
                 # message_str = await self.client_websocket.websocket.recv()
-                message_str = await self.client_websocket.receive_message()
-                self.logger.debug(f"Monitor received: {message_str=}")
-                if message_str is not None:
-                    message: dict = json.loads(message_str)
+                message_raw = await self.client_websocket.receive_message()
+                self.logger.debug(f"Monitor received: {message_raw=}")
+                if message_raw is not None:
+                    try:
+                        message: dict = orjson.loads(message_raw)
+                    except JSONDecodeError as e:
+                        self.logger.warning(f"JSONDecodeError: {e}: {message_raw=}")
                     event_type = message.get("event")
                     if event_type == "perf_test":
                         await self.handle_perf_response(message)
