@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+// Define the message structure
+message ChatMessage {
+    float latency = 1;
+    int32 perf_test_id = 2;
+    repeated float cpu_load = 3;
+    float memory_usage = 4;
+    int32 active_connections = 5;
+    int32 message_volume = 6;
+    float mv_period = 7;
+    int32 mv_adjusted = 8;
+    string event = 9;
+    string sender = 10;
+    string sent_at = 11;
+    string channel = 12;
+    string content = 13;
+    repeated string data = 14;
+}
+
+// Message structure with all possible fields
+//  {
+//      "latency": float,
+//      "perf_test_id" : int,
+//      "cpu_load" : list[float],
+//      "memory_usage" : float,
+//      "active_connections" : int,
+//      "message_volume": int,
+//      "mv_period": float,
+//      "mv_adjusted": int,
+//      "event": str,
+//      "sender": str,
+//      "sent_at": str,
+//      "channel": str,
+//      "content": str,
+//      "data": list[str],
+//  }
