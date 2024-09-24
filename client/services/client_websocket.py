@@ -63,7 +63,7 @@ class MyWebSocket:
 
 
     async def send_message(self, message: dict):
-        """Send message via WebSocket."""
+        """Send message via WebSocket. Provide dict and it will be converted to protobuf message and serialized"""
         if not self.connected:
             # self.logger.info("Cannot send message, WebSocket is not connected.")
             raise ConnectionError
@@ -89,7 +89,10 @@ class MyWebSocket:
             # self.logger.info("Cannot receive message, WebSocket is not connected.")
             return 
         try:
-            return await self.websocket.recv()
+            message = await self.websocket.recv()
+            # self.logger.info(f"{message=}, {type(message)=}")
+            return message
+            # return await self.websocket.recv()
         except websockets.exceptions.ConnectionClosedError as e:
             self.logger.debug(f"Connection closed unexpectedly: {e}. Reconnecting...")
             self.connected = False

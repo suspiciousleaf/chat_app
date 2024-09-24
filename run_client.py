@@ -18,10 +18,11 @@ if __name__ == "__main__":
 # TODO Button or trigger to load older message history?
 # TODO Add a max message character limit
 # Errors sending messages to websockets that have disconnected, still present in docker logs
+#! Message history: Size count is probably broken by using orjson or protobuf
 
 
 #! Database
-#! TODO Add indexes
+
 
 #! General
 # TODO Add proper logging
@@ -29,13 +30,7 @@ if __name__ == "__main__":
 # TODO Integration testing
 # TODO End-to-end testing
 # TODO User flow testing
-# TODO Perf testing
 
-#! Other
-# TODO Maybe open a PR to fix the issue of .index returning "" and causing TclError? Should return -1 if clicking outside of a tab, not through an exception
-
-
-#! Hosted
 
 #! Load testing
 # TODO Add flame graph profiling to server

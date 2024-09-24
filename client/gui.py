@@ -401,8 +401,11 @@ class Chattr:
     async def listen_for_messages(self):
         while self.connection_active:
             try:
+                # message_raw = await asyncio.wait_for(
+                #     self.client_websocket.websocket.recv(), timeout=1.0
+                # )
                 message_raw = await asyncio.wait_for(
-                    self.client_websocket.websocket.recv(), timeout=1.0
+                    self.client_websocket.receive_message(), timeout=1.0
                 )
                 message: dict = self.decode_received_message(message_raw)
                 if message is not None:
