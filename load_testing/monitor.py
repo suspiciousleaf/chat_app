@@ -59,8 +59,8 @@ class Monitor(User):
             "memory_usage" : message.get("memory_usage"),
             "active_connections" : message.get("active_connections") - 1,
             "message_volume": message.get("message_volume"),
-            "mv_period": message.get("mv_period"),
-            "mv_adjusted": message.get("mv_adjusted"),
+            "mv_period": message.get("mv_period", 0.0),
+            "mv_adjusted": message.get("mv_adjusted", 0),
             }
         self.logger.debug(f"{self.perf_data[perf_test_id]=}")
         if message.get("active_connections") < 1:
