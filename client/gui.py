@@ -4,9 +4,9 @@ import tkinter as tk
 from tkinter import ttk
 import asyncio
 import threading
-import json
-import orjson
-from json import JSONDecodeError
+# import json
+# import orjson
+# from json import JSONDecodeError
 import requests
 from re import split as re_split
 from _tkinter import TclError
@@ -30,9 +30,9 @@ LIGHT_BLUE = "#CCEDFF"
 LIGHT_GRAY = "#F5F5F5"
 LABEL_COLOUR = "#25265E"
 
-# URL = "http://127.0.0.1:8000"
 load_dotenv()
 URL = getenv("URL")
+# URL = "http://127.0.0.1:8000"
 LOGIN_ENDPOINT = "/auth/token"
 CREATE_ACCOUNT_ENDPOINT = "/create_account"
 
@@ -45,7 +45,7 @@ MAX_CHANNELS = 12
 # {
 #   "event": "message",
 #   "channel": "username_1",
-#   "sender": "user123",
+#   "username": "user123",
 #   "content": "Hello, world!",
 #   "sent_at": "2023-07-25T12:34:56Z"
 # }
@@ -404,10 +404,14 @@ class Chattr:
                 # message_raw = await asyncio.wait_for(
                 #     self.client_websocket.websocket.recv(), timeout=1.0
                 # )
-                message_raw = await asyncio.wait_for(
+                # message_raw = await asyncio.wait_for(
+                #     self.client_websocket.receive_message(), timeout=1.0
+                # )
+                # message: dict = self.decode_received_message(message_raw)
+                message: dict = await asyncio.wait_for(
                     self.client_websocket.receive_message(), timeout=1.0
                 )
-                message: dict = self.decode_received_message(message_raw)
+
                 if message is not None:
                     # "messages" can contain event information such as channel subscriptions, or message data. This filters based on keys present.
                     event_type = message.get("event")
@@ -458,14 +462,14 @@ class Chattr:
         self.nb_tabs[channel].config(state="disabled")
         self.nb_tabs[channel].yview(tk.END)  # Auto-scroll to the bottom
 
-    def decode_received_message(self, message: bytes) -> dict:
-        try:
-            # return json.loads(message)
-            return orjson.loads(message)
-        except JSONDecodeError:
-            print(f"Could not decode bytes message: {message}")
-        except Exception as e:
-            print(f"Unknown error occurred when decoding message: {e}")
+    # def decode_received_message(self, message: bytes) -> dict:
+    #     try:
+    #         # return json.loads(message)
+    #         return orjson.loads(message)
+    #     except JSONDecodeError:
+    #         print(f"Could not decode bytes message: {message}")
+    #     except Exception as e:
+    #         print(f"Unknown error occurred when decoding message: {e}")
 
     def create_notebook(self):
         self.style = ttk.Style()

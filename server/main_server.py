@@ -7,8 +7,8 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
-import json
-import orjson
+# import json
+# import orjson
 import datetime
 import asyncio
 import logging
@@ -18,17 +18,19 @@ import logging
 # from dotenv import load_dotenv
 from pprint import pprint
 
-# from server.routers.auth import router as auth_router
-# from server.routers.auth import get_current_active_user, get_current_user
+try:
+    from routers.auth import router as auth_router
+    from routers.auth import get_current_active_user, get_current_user
+except:
+    from server.routers.auth import router as auth_router
+    from server.routers.auth import get_current_active_user, get_current_user
 
-from routers.auth import router as auth_router
-from routers.auth import get_current_active_user, get_current_user
-
-# from server.services.db_manager import db
-# from server.services.connection_manager import ConnectionManager
-
-from services.db_manager import db
-from services.connection_manager import ConnectionManager
+try:
+    from services.db_manager import db
+    from services.connection_manager import ConnectionManager
+except:
+    from server.services.db_manager import db
+    from server.services.connection_manager import ConnectionManager
 
 logger = logging.getLogger('Server')
 handler = logging.StreamHandler()
@@ -145,24 +147,20 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             try:
                 # message: dict = json.loads(await websocket.receive_text())
-                message: dict = orjson.loads(await websocket.receive_bytes())
+                # message: dict = orjson.loads(await websocket.receive_bytes())
+                message: bytes = await websocket.receive_bytes()
             except RuntimeError as e:
                 if str(e) == 'WebSocket is not connected. Need to call "accept" first.':
                     pass
                 else:
                     logger.warning(f"Websocket endpoint {type(e).__name__}: {e}")
                 await connection_man.disconnect(active_user.username)
-                
-            message["username"] = active_user.username
-            await connection_man.handle_incoming_message(message)
+            await connection_man.handle_incoming_message(message, active_user.username)
+            # message["username"] = active_user.username
+            # await connection_man.handle_incoming_message(message)
     except WebSocketDisconnect:
         await connection_man.disconnect(active_user.username)
     except asyncio.CancelledError:
         await connection_man.disconnect(active_user.username)
-    # except RuntimeError as e:
-    #     if str(e) == 'WebSocket is not connected. Need to call "accept" first.':
-    #         await connection_man.disconnect(active_user.username)
-    #     else:
-    #         logger.warning(f"Websocket endpoint {type(e).__name__}: {e}")
     except Exception as e:
-        logger.warning(f"Websocket endpoint Exception: {type(e).__name__}: {e}")
+        logger.warning(f"Websocket endpoint Exception: {type(e).__name__}: {e}", exc_info=True)

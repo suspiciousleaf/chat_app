@@ -1,7 +1,7 @@
 import time
 import asyncio
-import json
-import orjson
+# import json
+# import orjson
 from pathlib import Path
 from os import getenv
 import datetime
@@ -13,8 +13,17 @@ from fastapi.websockets import WebSocketState, WebSocketDisconnect
 from dotenv import load_dotenv
 import psutil
 
-# from server.services.db_manager import DatabaseManager
-from services.db_manager import DatabaseManager
+from google.protobuf.message import EncodeError, DecodeError
+from google.protobuf.json_format import MessageToDict, ParseDict
+from google.protobuf.internal import api_implementation
+print(f"This should be 'upb': {api_implementation.Type()=}\n")
+
+try:
+    from services.db_manager import DatabaseManager
+    import message_pb2
+except:
+    from server.services.db_manager import DatabaseManager
+    from server import message_pb2
 
 
 
@@ -76,47 +85,72 @@ class ConnectionManager:
     async def send_channel_subscriptions(self, websocket: WebSocket, channels: set):
         """Send a formatted message to the client with a list of channels that the user account is subscribed to"""
 
-        info_message = {"event": "channel_subscriptions", "data": list(channels)}
-        # await websocket.send_text(json.dumps(info_message))
-        await websocket.send_bytes(orjson.dumps(info_message))
+        message_data: dict = {"event": "channel_subscriptions", "data": list(channels)}
+        # await websocket.send_text(json.dumps(message_data))
+        # await websocket.send_bytes(orjson.dumps(message_data))
+        await self.encode_send_message(websocket, message_data)
 
-    async def send_channel_history(self, websocket: WebSocket, channels: set):
-        """Send the message history for all subscribed channels to the client"""
-        message_history: list = self.db.retrieve_message_history(channels)
+    async def encode_send_message(self, websocket: WebSocket, message_data: dict):
+        
+        message_bytes: bytes = self.encode_message(message_data)
+        if message_bytes is not None:
+            await websocket.send_bytes(message_bytes)
 
-        # If any messages are in the cache, add the to the message history to send to newly logged in accounts
-        if self.message_cache:
-            for message in self.message_cache:
-                if message.get("channel") in channels:
-                    message_history.extend(message)
+    def encode_message(self, message_data: dict) -> bytes:
+        try:
+            # # Protobuf and client uses "sender" as "username" is reserved, so if present change the key value
+            # if "username" in message_data:
+            #     message_data["sender"] = message_data.get("username")
+            #     message_data.pop("username")
+            message_object = ParseDict(message_data, message_pb2.ChatMessage())
 
-        # history_message = {"event": "message history", "data": message_history}
+            return message_object.SerializeToString()
+        except EncodeError as e:
+            self.logger.warning(f"encode_message() Protobuf EncodeError: {e}")
+        except Exception:
+            self.logger.warning(f"Exception during encode_message(): {type(e).__name__}: {e}")
 
-        # await websocket.send_bytes(orjson.dumps(history_message))
+
+    # async def send_channel_history(self, websocket: WebSocket, channels: set):
+    #     """Send the message history for all subscribed channels to the client"""
+    #     message_history: list = self.db.retrieve_message_history(channels)
+
+    #     # If any messages are in the cache, add the to the message history to send to newly logged in accounts
+    #     if self.message_cache:
+    #         for message in self.message_cache:
+    #             if message.get("channel") in channels:
+    #                 message_history.extend(message)
+
+    #     # history_message = {"event": "message history", "data": message_history}
+
+    #     # # await websocket.send_bytes(orjson.dumps(history_message))
+    #     # await self.websocket_send_bytes(websocket, history_message)
 
 
-        # Message history can exceed the maximum size for a websocket message (1MB), so the section below checks the size and breaks it down into multiple messages if it exceeds this limit. Currently not very performant as it serializes each message twice
+    #     # Message history can exceed the maximum size for a websocket message (1MB), so the section below checks the size and breaks it down into multiple messages if it exceeds this limit. Currently not very performant as it serializes each message twice
+    #     #! Size count is probably broken by using orjson or protobuf
+    #     history_message = {"event": "message history", "data": []}
+    #     max_size = 1024 * 900  # 1 MB size limit for websocket message, with an allowance for getsizeof inaccurate estimate
 
-        history_message = {"event": "message history", "data": []}
-        max_size = 1024 * 900  # 1 MB size limit for websocket message, with an allowance for getsizeof inaccurate estimate
+    #     current_size = 0
 
-        current_size = 0
+    #     for message in message_history:
+    #         message_size = getsizeof(orjson.dumps(message))
 
-        for message in message_history:
-            message_size = getsizeof(orjson.dumps(message))
+    #         if current_size + message_size > max_size:
+    #             # await websocket.send_bytes(orjson.dumps(history_message))
+    #             await self.encode_send_message(websocket, message_history)
+    #             # Reset for the next chunk
+    #             history_message["data"] = []
+    #             current_size = 0
 
-            if current_size + message_size > max_size:
-                await websocket.send_bytes(orjson.dumps(history_message))
-                # Reset for the next chunk
-                history_message["data"] = []
-                current_size = 0
+    #         history_message["data"].append(message)
+    #         current_size += message_size
 
-            history_message["data"].append(message)
-            current_size += message_size
-
-        # Send any remaining messages
-        if history_message["data"]:
-            await websocket.send_bytes(orjson.dumps(history_message))
+    #     # Send any remaining messages
+    #     if history_message["data"]:
+    #         # await websocket.send_bytes(orjson.dumps(history_message))
+    #         await self.encode_send_message(websocket, message_history)
 
     async def leave_channel(self, username: str, channel: str):
         """Remove channel subscription for username"""
@@ -183,14 +217,15 @@ class ConnectionManager:
     async def broadcast(self, message: dict):
         """Send message to all active connections that are subscribed to that channel"""
         channel = message.get("channel")
-        message_raw = orjson.dumps(message)
+        # message_raw = orjson.dumps(message)
         closed_connections = []
         tasks = []
 
         # Iterate over users and websockets subscribed to the channel
         for user, websocket in self.channel_subscribers.get(channel, {}).items():
             # Append the send_message task to the list of tasks
-            tasks.append(self.send_message(user, websocket, message_raw, closed_connections))
+            tasks.append(self.send_message(user, websocket, message, closed_connections))
+            # tasks.append(self.send_message(user, websocket, message_raw, closed_connections))
         
         # Gather and await the results of the tasks
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -210,7 +245,8 @@ class ConnectionManager:
         if user not in self.active_connections:
             return
         try:
-            await websocket.send_bytes(message_raw)
+            # await websocket.send_bytes(message_raw)
+            await self.encode_send_message(websocket, message_raw)
             if self.load_testing:
                 self.message_volume += 1
                 if self.message_volume_timer is None:
@@ -221,26 +257,45 @@ class ConnectionManager:
             if str(e) == 'Cannot call "send" once a close message has been sent.':
                 closed_connections.append(user)
             else:
-                self.logger.warning(f"Exception sending message, closing connection: {user in self.active_connections=} {type(e).__name__}: {e}")
+                self.logger.warning(f"Exception sending message, closing connection: {user in self.active_connections=} {type(e).__name__}: {e}", exc_info=True)
                 closed_connections.append(user)
 
-    async def handle_incoming_message(self, message: dict):
-        self.logger.debug(f"Received: {message}")
-        message_event = message.get("event")
-        if message_event == "message":
-            # Timestamp is generated by server for UTC and converted to an ISO 8601 format string for redis and database compatibility
-            message["sent_at"] = self.db.adapt_datetime_iso(
-                datetime.datetime.now(datetime.timezone.utc)
-            )
-            await self.broadcast(message)
-            self.message_cache.append(message)
-            # TODO Add graceful error handling for batch inserts / fails
-        elif message_event == "leave_channel":
-            await self.leave_channel(message.get("username"), message.get("channel"))
-        elif message_event == "add_channel":
-            await self.add_channel(message.get("username"), message.get("channel"))
-        elif message_event == "perf_test":
-            await self.handle_perf_ping(message)
+    def decode_message(self, message_bytes: bytes) -> dict:
+        """Decode bytes serialized message using MessageToDict"""
+        try:
+            parsed_message = message_pb2.ChatMessage()
+            parsed_message.ParseFromString(message_bytes)
+
+            return MessageToDict(parsed_message, preserving_proto_field_name=True)
+        except Exception as e:
+            raise DecodeError(e)
+
+    # async def handle_incoming_message(self, message: dict):
+    async def handle_incoming_message(self, message_bytes: bytes, username: str):
+        try:
+            message: dict = self.decode_message(message_bytes)
+            self.logger.debug(f"Received: {message}")
+            message["username"] = username
+            message_event = message.get("event")
+            if message_event == "message":
+                # Timestamp is generated by server for UTC and converted to an ISO 8601 format string for redis and database compatibility
+                message["sent_at"] = self.db.adapt_datetime_iso(
+                    datetime.datetime.now(datetime.timezone.utc)
+                )
+                await self.broadcast(message)
+                self.message_cache.append(message)
+                # TODO Add graceful error handling for batch inserts / fails
+            elif message_event == "leave_channel":
+                await self.leave_channel(message.get("username"), message.get("channel"))
+            elif message_event == "add_channel":
+                await self.add_channel(message.get("username"), message.get("channel"))
+            elif message_event == "perf_test":
+                await self.handle_perf_ping(message)
+        except DecodeError as e:
+            self.logger.warning(f"handle_incoming_message() Protobuf DecodeError: {e}")
+        except Exception:
+            self.logger.warning(f"Exception during handle_incoming_message(): {type(e).__name__}: {e}")
+
 
     async def start_listener(self):
         """Method to take cached messages and batch upload them to the database if conditions are met"""
@@ -295,9 +350,6 @@ class ConnectionManager:
                 self.alpha * (self.message_volume/mv_time_interval) + (1 - self.alpha) * self.ema_message_volume
             )
 
-            # Calculate adjusted message rate
-            # mv_adjusted = self.ema_message_volume
-
             response_message = {
                 "event": "perf_test",
                 "perf_test_id" : perf_test_id,
@@ -306,14 +358,14 @@ class ConnectionManager:
                 "active_connections" : active_connections,
                 "message_volume": self.message_volume,
                 "mv_period": time.perf_counter() - self.message_volume_timer,
-                # "mv_adjusted": round(self.message_volume / (time.perf_counter() - self.message_volume_timer)),
                 "mv_adjusted": round(self.ema_message_volume)
             }
             websocket: WebSocket = self.active_connections.get(username).get("ws")
             self.message_volume = 0
             self.message_volume_timer = time.perf_counter()
             self.logger.debug(f"Sending perf response: {response_message}")
-            await websocket.send_bytes(orjson.dumps(response_message))
+            # await websocket.send_bytes(orjson.dumps(response_message))
+            await self.encode_send_message(websocket, response_message)
         except Exception as e:
             self.logger.warning(f"Error sending perf response: {e}")
 

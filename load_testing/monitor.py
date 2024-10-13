@@ -1,8 +1,8 @@
 import time
 import asyncio
-import json
-from json import JSONDecodeError
-import orjson
+# import json
+# from json import JSONDecodeError
+# import orjson
 import traceback
 from pprint import pprint
 from logging import Logger
@@ -13,7 +13,7 @@ class Monitor(User):
     def __init__(self, logger: Logger, account: dict):
         super().__init__(logger, account)
         self.perf_data: dict = {} #{channel:{} for channel in self.test_channels}
-        self.perf_test_id = 0
+        self.perf_test_id = 1
         self.logger.info(f"Created: {self}")
         
         # Info to test/get from server:
@@ -49,7 +49,6 @@ class Monitor(User):
 
     async def handle_perf_response(self, message: dict):
         """Handle the perf test response message and log the data"""
-        self.logger.debug(f"Monitor received: {message}")
         perf_test_id = message.get("perf_test_id")
         time_sent_at = self.perf_data[perf_test_id].get("latency")
         self.perf_data[perf_test_id] = {
@@ -73,19 +72,21 @@ class Monitor(User):
         while self.connection_active:
             try:
                 # message_str = await self.client_websocket.websocket.recv()
-                message_raw = await self.client_websocket.receive_message()
-                self.logger.debug(f"Monitor received: {message_raw=}")
-                if message_raw is not None:
-                    try:
-                        message: dict = orjson.loads(message_raw)
-                    except JSONDecodeError as e:
-                        self.logger.warning(f"JSONDecodeError: {e}: {message_raw=}")
+                # message_raw = await self.client_websocket.receive_message()
+                message = await self.client_websocket.receive_message()
+                self.logger.debug(f"Monitor received: {message=}")
+                if message is not None:
+                    # try:
+                    #     message: dict = orjson.loads(message_raw)
+                    # except JSONDecodeError as e:
+                    #     self.logger.warning(f"JSONDecodeError: {e}: {message_raw=}")
                     event_type = message.get("event")
                     if event_type == "perf_test":
                         await self.handle_perf_response(message)
             except asyncio.CancelledError as e:
                 pass 
             except Exception as e:
+                self.logger.warning(message)
                 if self.connection_active:
                     self.logger.warning(f"Monitor listener Exception: {self.connection_active=}, {e}", exc_info=True)
                     # traceback.print_tb(e.__traceback__)

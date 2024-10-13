@@ -6,10 +6,10 @@ from jose import JWTError, ExpiredSignatureError, jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 from os import getenv
-
-# from server.services.db_manager import db
-
-from services.db_manager import db
+try:
+    from services.db_manager import db
+except:
+    from server.services.db_manager import db
 
 
 load_dotenv()

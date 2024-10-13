@@ -1,8 +1,8 @@
 import aiohttp
 import asyncio
-import json
-from json import JSONDecodeError
-import orjson
+# import json
+# from json import JSONDecodeError
+# import orjson
 import random
 import traceback
 from logging import Logger
@@ -194,20 +194,22 @@ class User:
         while self.connection_active:
             try:
                 # message_raw = await self.client_websocket.websocket.recv()
-                message_raw = await self.client_websocket.receive_message()
-                if message_raw is not None:
-                    try:
-                        message: dict = orjson.loads(message_raw)
-                    except JSONDecodeError:
-                        self.logger.debug(f"JSONDecodeError: {message_raw}")
-                    except Exception as e:
-                        self.logger.info(f"{type(e).__name__}: {e}")
-                    if message is not None:
-                        event_type = message.get("event")
-                        if event_type == "channel_subscriptions":
-                            new_channels = message.get("data")
-                            if isinstance(new_channels, list):
-                                self.channels.extend(new_channels)
+                # message_raw = await self.client_websocket.receive_message()
+                message: dict = await self.client_websocket.receive_message()
+                # if message_raw is not None:
+                # if message is not None:
+                    # try:
+                    #     message: dict = orjson.loads(message_raw)
+                    # except JSONDecodeError:
+                    #     self.logger.debug(f"JSONDecodeError: {message_raw}")
+                    # except Exception as e:
+                    #     self.logger.info(f"{type(e).__name__}: {e}")
+                if message is not None:
+                    event_type = message.get("event")
+                    if event_type == "channel_subscriptions":
+                        new_channels = message.get("data")
+                        if isinstance(new_channels, list):
+                            self.channels.extend(new_channels)
             except asyncio.CancelledError:
                 break  
             except ConnectionClosedOK:
