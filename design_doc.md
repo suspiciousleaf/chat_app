@@ -128,3 +128,21 @@ with auth:
 json   percentiles_ms=[362,857,2132]
 orjson percentiles_ms=[309,492,1828]
 
+In serialization / deserialization tests, using a simple message with a string, int, float, and list (repeat string) over 10,000,000 loops. Using the upb micro-protobuf backend written in C for improved performance over the standard C++ version. Results:
+
+Protobuf serialize:   403 ms
+Protobuf deserialize: 344 ms
+Protobuf total:       747 ms
+Protobuf file size:   64 b
+
+Orjson serialize:     407 ms
+Orjson deserialize:   645 ms
+Orjson total:         1,052 ms
+Orjson file size:     116 b
+
+Json serialize:       3,588 ms
+Json deserialize:     2,630 ms
+Json total:           6,219 ms
+Json file size:       132 b
+
+Protobuf is the fastest, but orjson was surprisingly close. Orjson is slightly faster at serializing data, but significantly slower at deserializing. Orjson shows a small reduction in filesize vs json, but protobuf achieves a 50% reduction in filesize which will contribute meaningfully to reducing required bandwidth.
