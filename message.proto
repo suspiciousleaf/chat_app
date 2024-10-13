@@ -11,7 +11,7 @@ message ChatMessage {
     float mv_period = 7;
     int32 mv_adjusted = 8;
     string event = 9;
-    string sender = 10;
+    string username = 10;
     string sent_at = 11;
     string channel = 12;
     string content = 13;
