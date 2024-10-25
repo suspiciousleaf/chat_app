@@ -119,6 +119,7 @@ If these are achieved, sustain higher account activity while maintaining accepta
 - Risk: Protobuf will make serialized messages unreadable
 - Mitigation: Careful logging and incremental implementation to avoid errors should avoid most issues
 
+## Performance goal 1: Serialization
 
 Implemented orjson isntead of json with messages sent as bytes of websocket - latency percentiles changes:
 without auth: 
@@ -146,3 +147,22 @@ Json total:           6,219 ms
 Json file size:       132 b
 
 Protobuf is the fastest, but orjson was surprisingly close. Orjson is slightly faster at serializing data, but significantly slower at deserializing. Orjson shows a small reduction in filesize vs json, but protobuf achieves a 50% reduction in filesize which will contribute meaningfully to reducing required bandwidth.
+
+Implemented cProfile to test server when running locally. Identified issue with protobuf implementation serializing messages for every send, rather than every message. Corrected and ran load testing under the same conditions:
+
+without auth:
+protobuf percentiles_ms=[159,190,252]
+
+with auth:
+protobuf percentiles_ms=[280,427,1667]
+
+This has already exceeded the specified performance targets of [200,500,1000] when the auth load is removed, and isn't far off with it included. 
+Virtual users were increased to 300 in the no auth test, which results in message volume increasing from ~6500/s to ~9000/s, and is sustained with the following latencies:
+protobuf percentiles_ms=[357,460,561]
+
+Additional observations:
+While CPU load on the core handling the async thread remains high, the load on the second core increased from ~3% to ~20%. The protobuf serialization is done in C on a separate thread, which appears to be pushed to the second core. Moving this load to the other core, and the reduced message size, enables this higher sustained load and provides a significant performance boost.
+
+This completes performance goal 1, serialization is done most efficiently using Protobuf, and a significant improvement in message volume and latency has been achieved.
+
+## Performance goal 2: Profiling
