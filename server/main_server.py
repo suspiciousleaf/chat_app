@@ -155,7 +155,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 else:
                     logger.warning(f"Websocket endpoint {type(e).__name__}: {e}")
                 await connection_man.disconnect(active_user.username)
-            await connection_man.handle_incoming_message(message, active_user.username)
+            try:
+                await connection_man.handle_incoming_message(message, active_user.username)
+            except Exception as e:
+                print(f"Exception during 'while True' loop of main_server websocket endpoint: {type(e).__name__}: {e}")
+                await connection_man.disconnect(active_user.username)
+
             # message["username"] = active_user.username
             # await connection_man.handle_incoming_message(message)
     except WebSocketDisconnect:
