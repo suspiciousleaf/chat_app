@@ -11,6 +11,9 @@ perf_test_db
 perf_testing.md
 /perf_data/
 most_recent_perf_raw_data.json
+*.svg
+*.prof
+*.dot
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
