@@ -69,9 +69,6 @@ class LoadTester:
             task = asyncio.create_task(self.create_and_run_user(account))
             tasks.append(task)
             if self.connection_delay:
-                delay = self.connection_delay
-                # if i > len(accounts_to_use) / 2:
-                #     delay *= 2
                 await asyncio.sleep(self.connection_delay)
         # Await completion of all load tasks, but not the monitor as its listener task runs indefinitely. User tasks stop their listener tasks automatically when they have completed their actions so this doesn't hinder gather.
         await asyncio.gather(*tasks[1:])
@@ -204,51 +201,6 @@ class LoadTester:
             axs[1, 1].set_ylim(0, 2.5)
 
             axs[1, 1].set_xticklabels([f'{int(bins[i])}-{int(bins[i+1])}' for i in range(num_bins)], rotation=45)
-
-            # # Best fit line
-            # poly_coeffs = np.polyfit(active_users, message_volume, 2)  
-            # poly_func = np.poly1d(poly_coeffs)
-            # x = np.linspace(min(active_users), max(active_users), 100)
-            # y = poly_func(x)
-            # axs[1].plot(x, y, color='#a16ae8', label='Best Fit Curve') 
-
-            #! axs[1].legend()
-
-            # # First subplot: Active Users vs Message Volume (normal scale)
-            # axs[0].scatter(active_users, message_volume)
-            # axs[0].set_xlabel('Active Users')
-            # axs[0].set_ylabel('Message Volume')
-            # axs[0].set_title('Active Users vs Message Volume')
-
-            # # Best fit line for normal graph (quadratic fit)
-            # poly_coeffs = np.polyfit(active_users, message_volume, 2)  # 2nd degree polynomial fit
-            # poly_func = np.poly1d(poly_coeffs)  # Create the polynomial function
-
-            # # Generate values for the best-fit curve
-            # x = np.linspace(min(active_users), max(active_users), 100)
-            # y = poly_func(x)
-
-            # # Plot the best-fit curve on the first subplot
-            # axs[0].plot(x, y, color='#a16ae8', label='Best Fit Curve')
-            # axs[0].legend()
-
-            # # Second subplot: Active Users vs Log(Message Volume)
-            # log_message_volume = np.log(message_volume)  # Log-transform the message volume
-            # axs[1].scatter(active_users, log_message_volume)
-            # axs[1].set_xlabel('Active Users')
-            # axs[1].set_ylabel('Log(Message Volume)')
-            # axs[1].set_title('Active Users vs Log(Message Volume)')
-
-            # # Best fit line for log-transformed data (linear fit)
-            # log_poly_coeffs = np.polyfit(active_users, log_message_volume, 1)  # Linear fit
-            # log_poly_func = np.poly1d(log_poly_coeffs)
-
-            # # Generate the best-fit line for the log-transformed data
-            # y_log_fit = log_poly_func(x)
-
-            # # Plot the best-fit line on the second subplot
-            # axs[1].plot(x, y_log_fit, color='#a16ae8', label=f'Best Fit Line (y = {log_poly_coeffs[0]:.2f}x + {log_poly_coeffs[1]:.2f})')
-            # axs[1].legend()
 
             # Adjust layout and display both plots
             plt.tight_layout()
