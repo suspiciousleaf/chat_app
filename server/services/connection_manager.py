@@ -1,12 +1,12 @@
 import time
 import asyncio
-# import json
-# import orjson
 from pathlib import Path
 from os import getenv
 import datetime
 from sys import getsizeof
 from logging import Logger
+import cProfile
+import os
 
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketState, WebSocketDisconnect
@@ -17,7 +17,8 @@ import psutil
 from google.protobuf.message import EncodeError, DecodeError
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.internal import api_implementation
-print(f"This should be 'upb': {api_implementation.Type()=}\n")
+
+print(f"Protobuf using C++ serialization: {api_implementation.Type() == 'upb'}")
 
 try:
     from services.db_manager import DatabaseManager
@@ -36,6 +37,7 @@ if env_path.exists():
 MAX_RECONNECT_ATTEMPTS = int(getenv("MAX_RECONNECT_ATTEMPTS"))
 RECONNECT_DELAY = getenv("RECONNECT_DELAY")
 CACHED_MESSAGE_UPLOAD_TIMER = int(getenv("CACHED_MESSAGE_UPLOAD_TIMER"))
+USE_CPROFILE = getenv("USE_CPROFILE") == "True"
 
 
 class ConnectionManager:
@@ -54,6 +56,8 @@ class ConnectionManager:
         # self.message_volume_timer = None
         self.ema_window = 3
         self.alpha = 2 / (self.ema_window + 1)  # Smoothing factor based on window size
+        self.run_profiling: bool = USE_CPROFILE
+        self.pr: cProfile.Profile | None = None
         
 
     async def connect(self, websocket: WebSocket, username: str):
@@ -65,6 +69,8 @@ class ConnectionManager:
                 self.channel_subscribers[channel] = {}
             self.channel_subscribers[channel][username] = websocket
         if username == "monitor":
+            if self.run_profiling:
+                self.start_profiling()
             self.logger.info("Load testing beginning")
             self.load_testing = True
             # Reset load testing values
@@ -185,6 +191,9 @@ class ConnectionManager:
             self.message_volume = 0
             self.message_volume_timer = None
             self.ema_message_volume = 0
+            if self.run_profiling:
+                self.stop_profiling()
+
         try:
             if username in self.active_connections:
                 websocket: WebSocket =  self.active_connections[username].get("ws")
@@ -381,6 +390,23 @@ class ConnectionManager:
         except Exception as e:
             self.logger.warning(f"Error sending perf response: {e}")
 
+    def start_profiling(self):
+        self.pr = cProfile.Profile()
+        self.pr.enable()
 
+    def stop_profiling(self):
+        self.pr.disable()
+        current_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
+        if "Programming" not in os.getcwd():
+            try:
+                profile_dir = os.path.join("services", "db_data", "profiles")
+                os.makedirs(profile_dir, exist_ok=True)
+                profile_file = os.path.join(profile_dir, f"{current_date}.prof")
+                self.pr.dump_stats(profile_file)
+            except:
+                print("Failed to save cProfile file")
+        else:
+            self.pr.dump_stats(fr"C:\Users\David\Documents\Programming\Python\Code_list\Projects\chat_app\chat_app\server\services\db_data\profiles\{current_date}.prof")
+        self.pr = None
 
 
