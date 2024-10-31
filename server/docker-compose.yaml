@@ -6,11 +6,18 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    #! Use this section when running on VPS
     volumes:
       - ./src:/app # Mount the current directory to /app in the container
       - ./db_data:/app/services/db_data # Mount the db_data directory on the host to the services directory in the container
-
     network_mode: "host" # Bind the local network of the container to the local network of the VPS
+
+    #! Use this section if running container locally
+    # volumes:
+    #   - .:/app # Mount the current directory to /app in the container
+    #   - ./services/db_data:/app/services/db_data
+    # ports:
+    #   - "8000:7999"
     command: uvicorn main_server:app --host 0.0.0.0 --port 7999
     # command: tail -f /dev/null # Keep the container running with no process
 
