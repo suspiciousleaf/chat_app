@@ -4,7 +4,7 @@ FROM python:3.12
 WORKDIR /app
 
 # Install vim-tiny and clean up apt cache to keep the image size small
-RUN apt-get update && apt-get install -y vim-tiny && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y nano && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
 COPY ./requirements.txt /app
