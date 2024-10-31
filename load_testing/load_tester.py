@@ -1,14 +1,13 @@
 import json
 import asyncio
-import threading
 import random
-import csv
 from logging import Logger
 from os import getenv
+import datetime
+
 from dotenv import load_dotenv
 import matplotlib.pyplot as plt
 import numpy as np
-import datetime
 
 from load_testing.virtual_user import User
 from load_testing.monitor import Monitor
@@ -214,7 +213,7 @@ class LoadTester:
             print(f"99th: {percentile_99}ms")
 
             current_date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
-            file_name = f"{current_date},protobuf,percentiles_ms=[{percentile_90},{percentile_95},{percentile_99}],accounts={self.num_accounts},actions={self.num_actions},delay_before_act={self.delay_before_actions},delay_between_act={self.delay_between_actions},delay_between_connections={self.connection_delay}"
+            file_name = f"{current_date},pb,uvloop,percentiles_ms=[{percentile_90},{percentile_95},{percentile_99}],accounts={self.num_accounts},actions={self.num_actions},delay_before_act={self.delay_before_actions},delay_between_act={self.delay_between_actions},delay_between_connections={self.connection_delay}"
             # Save the figure
             plt.savefig(f'perf_data/{file_name}.png', dpi=300)  # Save as PNG with high resolution (300 dpi)
 
