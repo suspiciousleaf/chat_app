@@ -1,3 +1,8 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+from pprint import pprint
+
 from fastapi import (
     FastAPI,
     WebSocket,
@@ -6,17 +11,6 @@ from fastapi import (
     status,
 )
 from pydantic import BaseModel, Field
-from contextlib import asynccontextmanager
-# import json
-# import orjson
-import datetime
-import asyncio
-import logging
-
-# from pathlib import Path
-# from os import getenv
-# from dotenv import load_dotenv
-from pprint import pprint
 
 try:
     from routers.auth import router as auth_router
@@ -44,7 +38,8 @@ logger.setLevel(logging.INFO)
 async def lifespan(app: FastAPI):
     # Startup logic
     loop = asyncio.get_event_loop()
-    print(f"Current event loop: {type(loop).__name__}")
+    # loop_type = "uvloop" if "uvloop" in str(type(loop)).lower() else type(loop).__name__
+    print(f"Current event loop: {str(type(loop))}")
 
     yield
 
@@ -65,12 +60,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth_router)
-
-
-# env_path = Path(".") / ".env"
-# if env_path.exists():
-#     load_dotenv(env_path)
-
 
 # Endpoint to get server health
 @app.get("/", status_code=status.HTTP_200_OK)
@@ -146,8 +135,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
         while True:
             try:
-                # message: dict = json.loads(await websocket.receive_text())
-                # message: dict = orjson.loads(await websocket.receive_bytes())
                 message: bytes = await websocket.receive_bytes()
             except RuntimeError as e:
                 if str(e) == 'WebSocket is not connected. Need to call "accept" first.':
@@ -160,9 +147,6 @@ async def websocket_endpoint(websocket: WebSocket):
             except Exception as e:
                 print(f"Exception during 'while True' loop of main_server websocket endpoint: {type(e).__name__}: {e}")
                 await connection_man.disconnect(active_user.username)
-
-            # message["username"] = active_user.username
-            # await connection_man.handle_incoming_message(message)
     except WebSocketDisconnect:
         await connection_man.disconnect(active_user.username)
     except asyncio.CancelledError:
