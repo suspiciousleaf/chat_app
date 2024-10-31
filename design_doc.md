@@ -166,3 +166,23 @@ While CPU load on the core handling the async thread remains high, the load on t
 This completes performance goal 1, serialization is done most efficiently using Protobuf, and a significant improvement in message volume and latency has been achieved.
 
 ## Performance goal 2: Profiling
+
+Can't use Scalene - doesn't support multiprocessing on Windows
+Can't use py-spy - doesn't support Python 3.12
+Used cProfile with gprof2dot and snakeviz.
+
+
+### Possible areas for improvement
+- SQLite commit. Comes from committing messages, and also committing updates channel subscription lists. Message history is already committed in batches, but channel subscriptions could be updated in cache, and then committed periodically, or on user disconnect.
+- Async loop overhead is a significant part of the load (insert number), exploring alternative event loops that are more optimised would likely be worthwhile. [uvloop](https://uvloop.readthedocs.io/) for Linux, or the Windows port, [winloop](https://pypi.org/project/winloop/), looks to be an appropriate choice.
+
+Implemented uvloop and deployed to VPS. Ran perf test under the standard conditions with the following results:
+
+Without auth:
+percentiles_ms=[165,196,247]
+
+cProfile imposes a significant additional load, so active accounts was reduced from 250 to 200. This drops message volume from ~6500/s to ~4000/s with latencies almost identical to the non profiled ones: percentiles_ms=[175,203,248]
+Prof filename for the above run:
+2024-10-31_20-09.prof
+
+Given that latencies are now significantly below the target values, the number of virtual accounts was increased to see what could be sustained. Using 300 accounts, with an associated message volume of ~9000/s, resulted in percentiles_ms=[463,555,751]. The first value, 90%, is over the target, but the other values are acceptable.
