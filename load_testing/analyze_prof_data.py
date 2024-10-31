@@ -4,10 +4,10 @@ import subprocess
 import sys
 
 # Define the datetime string for filenames
-datetime_string = "2024-10-25_12-46"
+datetime_string = "2024-10-31_20-09"
 
 # Load the profiling data from the .prof file
-profiler_stats = pstats.Stats(f'load_testing/{datetime_string}_output.prof')
+profiler_stats = pstats.Stats(f'load_testing/{datetime_string}.prof')
 
 # Print the top 10 functions sorted by time spent in the function (not including sub-functions)
 print("Top 10 functions by time spent:")
@@ -18,8 +18,8 @@ print("\nTop 10 functions by cumulative time spent:")
 profiler_stats.sort_stats('cumulative').print_stats(10)
 
 # Run gprof2dot to convert .prof file to DOT format using sys.executable
-prof_file = f'load_testing/{datetime_string}_output.prof'
-dot_file = f'load_testing/{datetime_string}_output.dot'
+prof_file = f'load_testing/{datetime_string}.prof'
+dot_file = f'load_testing/{datetime_string}.dot'
 subprocess.run([
     sys.executable, '-m', 'gprof2dot', '-f', 'pstats',
     prof_file, '-o', dot_file
