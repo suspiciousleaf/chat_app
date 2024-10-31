@@ -1,15 +1,10 @@
 import asyncio
 import websockets
-from websockets import WebSocketClientProtocol, ConnectionClosedOK, ConnectionClosedError
-import time
-# import json
-# import orjson
-# from orjson import JSONEncodeError 
-from os import getenv
-from dotenv import load_dotenv
-import traceback
 from logging import Logger
+from os import getenv
+from websockets import WebSocketClientProtocol, ConnectionClosedOK, ConnectionClosedError
 
+from dotenv import load_dotenv
 from google.protobuf.message import EncodeError, DecodeError
 from google.protobuf.json_format import MessageToDict, ParseDict
 
@@ -21,7 +16,7 @@ except:
 
 load_dotenv()
 
-# WS_URL = "ws://127.0.0.1:8000"
+WS_URL = "ws://127.0.0.1:8000"
 WS_URL = getenv("WS_URL")
 WEBSOCKET_ENDPOINT = "/ws"
 

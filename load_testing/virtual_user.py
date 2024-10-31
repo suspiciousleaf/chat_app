@@ -1,13 +1,8 @@
 import aiohttp
 import asyncio
-# import json
-# from json import JSONDecodeError
-# import orjson
 import random
-import traceback
 from logging import Logger
 from websockets import ConnectionClosedOK
-
 from os import getenv
 
 from dotenv import load_dotenv
@@ -17,10 +12,10 @@ from load_testing.sample_words import sample_words
 
 load_dotenv()
 
+URL = "http://127.0.0.1:8000"
 URL = getenv("URL")
-# URL = "http://127.0.0.1:8000"
+WS_URL = "ws://127.0.0.1:8000"
 WS_URL = getenv("WS_URL")
-# WS_URL = "ws://127.0.0.1:8000"
 LOGIN_ENDPOINT = "/auth/token"
 
 MAX_MESSAGE_LENGTH = 10
