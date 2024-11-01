@@ -181,8 +181,12 @@ Implemented uvloop and deployed to VPS. Ran perf test under the standard conditi
 Without auth:
 percentiles_ms=[165,196,247]
 
+With auth:
+percentiles_ms=[323,747,1992]
+
 cProfile imposes a significant additional load, so active accounts was reduced from 250 to 200. This drops message volume from ~6500/s to ~4000/s with latencies almost identical to the non profiled ones: percentiles_ms=[175,203,248]
 Prof filename for the above run:
 2024-10-31_20-09.prof
 
+# Note these values are higher than the above test using 300 accounts
 Given that latencies are now significantly below the target values, the number of virtual accounts was increased to see what could be sustained. Using 300 accounts, with an associated message volume of ~9000/s, resulted in percentiles_ms=[463,555,751]. The first value, 90%, is over the target, but the other values are acceptable.
