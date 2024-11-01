@@ -2,6 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pprint import pprint
+import platform
 
 from fastapi import (
     FastAPI,
@@ -25,6 +26,12 @@ try:
 except:
     from server.services.db_manager import db
     from server.services.connection_manager import ConnectionManager
+
+os_name = platform.platform()
+if "Windows" in os_name:
+    import winloop
+elif "Linux" in os_name:
+    import uvloop
 
 logger = logging.getLogger('Server')
 handler = logging.StreamHandler()
@@ -93,6 +100,37 @@ def tables():
 def get_filepath():
     db.init_database()
     return db.read_db_filepath()
+
+@app.get("/check-loop")
+async def check_loop():
+    """Endpoint to confirm the type of event loop being used, for debugging purposes"""
+    loop = asyncio.get_event_loop()
+    loop_type = type(loop).__name__
+    
+    if "Windows" in os_name:
+        is_winloop = isinstance(loop, winloop.Loop)
+        return {
+            "os": os_name,
+            "loop": loop_type,
+            "is_winloop": is_winloop,
+            "is_uvloop": False
+        }
+    elif "Linux" in os_name:
+        is_uvloop = isinstance(loop, uvloop.Loop)
+        return {
+            "os": os_name,
+            "loop": loop_type,
+            "is_winloop": False,
+            "is_uvloop": is_uvloop
+        }
+    else:
+        return {
+            "os": os_name,
+            "loop": loop_type,
+            "is_winloop": False,
+            "is_uvloop": False,
+            "message": "Unknown operating system"
+        }
 
 
 connection_man = ConnectionManager(logger, db)
