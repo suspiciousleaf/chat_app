@@ -188,5 +188,37 @@ cProfile imposes a significant additional load, so active accounts was reduced f
 Prof filename for the above run:
 2024-10-31_20-09.prof
 
-# Note these values are higher than the above test using 300 accounts
+# Note these values are higher than the above test using 300 accounts and not using uvloop
 Given that latencies are now significantly below the target values, the number of virtual accounts was increased to see what could be sustained. Using 300 accounts, with an associated message volume of ~9000/s, resulted in percentiles_ms=[463,555,751]. The first value, 90%, is over the target, but the other values are acceptable.
+
+Snakeviz of [this run](2024-11-01_17-31_uvloop.prof) shows high CPU demand from zlib.Compress. Follwoing the stacktrace shows it's being called by per message deflate used by the websocket library. While this can reduce network traffic significantly for json format messages, network bandwidth isn't the limiting factor and with messages serialized by protobuf there is typically little to no gain to be made. Disabling per message deflate should reduce this overhead. 
+permessage_deflate.py:141(encode) shows a cumulative time of 72.76s, which is 54% of the 134.9s cumulative time spent on connection_manager.py:250(send_message). 
+
+Results with uvicorn flag --per_message_deflate False:
+[percentiles_ms=[125,156,215]](2024-11-02_17-52,pb,uvloop,percentiles_ms=[125,156,215],accounts=250,actions=40,delay_before_act=62.5,delay_between_act=6,delay_between_connections=0.25.png)
+
+Profile 2024-11-02_16-33.prof shows cumulative time for connection_manager.py:250(send_message) has reduced to 64.26s, which is a significant reduction in CPU load.
+Normal message volume of ~6,500/s is sustained with a CPU load of 25%-45% instead of the previous standard range of 50%-80%.
+
+Running again with 300 virtual users and a message volume of 9,000/s gives the following latencies:
+
+[percentiles_ms=[178,204,258]](2024-11-02_18-08,pb,uvloop,percentiles_ms=[178,204,258],accounts=300,actions=40,delay_before_act=75.0,delay_between_act=6,delay_between_connections=0.25.png)
+
+This is well below the target values, so the number of users can be increased again, this time to 325 with a message volume of ~11,000/s
+
+[percentiles_ms=[164,188,221]](2024-11-02_18-22,pb,uvloop,percentiles_ms=[164,188,221],accounts=325,actions=40,delay_before_act=81.25,delay_between_act=6,delay_between_connections=0.25.png)
+
+This was sustained with CPU load of 40%-60%, which is still slightly lower than the 50%-80% that was required for a message volume of 6,500/s. 
+
+At 350 users and 13,000/s message volume, CPU load 40%-70%:
+
+[percentiles_ms=[198,230,309]](2024-11-02_18-30,pb,uvloop,percentiles_ms=[198,230,309],accounts=350,actions=40,delay_before_act=87.5,delay_between_act=6,delay_between_connections=0.25.png)
+
+At 375 users and 15,000/s message volume, CPU load 40%-70%:
+
+[percentiles_ms=[213,266,376]](2024-11-02_18-38,pb,uvloop,percentiles_ms=[213,266,376],accounts=375,actions=40,delay_before_act=93.75,delay_between_act=6,delay_between_connections=0.25.png)
+
+400 users, 17,000/s message volume, 40%-70% CPU:
+[percentiles_ms=[351,446,590]](2024-11-02_18-46,pb,uvloop,percentiles_ms=[351,446,590],accounts=400,actions=40,delay_before_act=100.0,delay_between_act=6,delay_between_connections=0.25.png)
+
+CPU load is trending higher slightly, but is still far from saturated. However the latency numbers are growing more rapidly, indicating that the server is becoming bound on another resource. Network bandwidth hit a max of 19.61MBit/s during the test, well shy of the VPS 1GBit connection. This might indicate a limit to performance gains that can be made by changing the code or architechture.
