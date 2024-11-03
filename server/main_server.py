@@ -1,3 +1,10 @@
+import psutil
+import os
+
+# Set CPU affinity for the main process to core 0
+p = psutil.Process(os.getpid())
+p.cpu_affinity([0])
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
