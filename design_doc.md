@@ -218,7 +218,17 @@ At 375 users and 15,000/s message volume, CPU load 40%-70%:
 
 [percentiles_ms=[213,266,376]](2024-11-02_18-38,pb,uvloop,percentiles_ms=[213,266,376],accounts=375,actions=40,delay_before_act=93.75,delay_between_act=6,delay_between_connections=0.25.png)
 
-400 users, 17,000/s message volume, 40%-70% CPU:
+400 users, 16,500/s message volume, CPU load 40%-70%:
 [percentiles_ms=[351,446,590]](2024-11-02_18-46,pb,uvloop,percentiles_ms=[351,446,590],accounts=400,actions=40,delay_before_act=100.0,delay_between_act=6,delay_between_connections=0.25.png)
 
-CPU load is trending higher slightly, but is still far from saturated. However the latency numbers are growing more rapidly, indicating that the server is becoming bound on another resource. Network bandwidth hit a max of 19.61MBit/s during the test, well shy of the VPS 1GBit connection. This might indicate a limit to performance gains that can be made by changing the code or architechture.
+425 users, 18,000/s message volume, CPU load 50%-90%:
+[percentiles_ms=[481,570,768]](2024-11-03_13-50,pb,uvloop,percentiles_ms=[481,570,768],accounts=425,actions=40,delay_before_act=106.25,delay_between_act=6,delay_between_connections=0.25)
+
+At this point the CPU is starting to become saturated and latencies are climbing rapidly outside the acceptable range.
+
+The process is rapidly moved between the CPU cores while it runs, which will result in increased cache misses and reduced performance. I used `psutil cpu affinity` to bind the main process to a single core, while allowing subprocesses and threads (such as those used my protobuf for serialization) to be freely assigned between cores. Delay between account sign-ins was increased from 0.25s to 0.35s due to the higher CPU load during auth, which will ultimately be moved to a different microservice. This resulted in reduced latencies, and a narrower spread of CPU load values.
+
+425 users, 18,000/s message volume, CPU load 70%-90%:
+[percentiles_ms=[338,428,671]](2024-11-03_16-21,pb,uvloop,percentiles_ms=[338,428,671],accounts=425,actions=40,delay_before_act=148.75,delay_between_act=6,delay_between_connections=0.35)
+
+Message volume to number of users equation is approx 0.1x^2. 250 users ^ 2 = 62,500, *0.1 = 6,250 messages per second
