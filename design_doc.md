@@ -30,15 +30,13 @@ Current load testing parameters have been chosen to push the server slightly bey
 
 ### Analysis
 
-Lantecies achieved:
-- 90th: 362ms
-- 95th: 857ms
-- 99th: 2132ms
+Lantecies achieved [90th, 95th, 99th]:
+- percentiles_ms=[342,748,2162]
   
 Current latencies are approximately double the desired values. 
 
- ![Graphs](https://i.imgur.com/fMh0V5v.png)
- [Source](https://i.imgur.com/fMh0V5v.png)
+ ![Graphs](https://i.imgur.com/4Jmd8QG.png)
+ [Source](https://i.imgur.com/4Jmd8QG.png)
 
 The graphs show some key details. The first graph shows that latency correlates with CPU load, rising slightly above 50% load, with some data points spiking significantly above 70% load. Message volume also correlates with CPU load. Message volume plateaus around 6500 per second, which can be sustained at approx 50% CPU load.  
 
@@ -126,7 +124,7 @@ without auth:
 json   percentiles_ms=[203,246,311]
 orjson percentiles_ms=[170,199,240]
 with auth:
-json   percentiles_ms=[362,857,2132]
+json   percentiles_ms=[342,748,2162]
 orjson percentiles_ms=[309,492,1828]
 
 In serialization / deserialization tests, using a simple message with a string, int, float, and list (repeat string) over 10,000,000 loops. Using the upb micro-protobuf backend written in C for improved performance over the standard C++ version. Results:
@@ -228,7 +226,7 @@ At this point the CPU is starting to become saturated and latencies are climbing
 
 The process is rapidly moved between the CPU cores while it runs, which will result in increased cache misses and reduced performance. I used `psutil cpu affinity` to bind the main process to a single core, while allowing subprocesses and threads (such as those used my protobuf for serialization) to be freely assigned between cores. Delay between account sign-ins was increased from 0.25s to 0.35s due to the higher CPU load during auth, which will ultimately be moved to a different microservice. This resulted in reduced latencies, and a narrower spread of CPU load values.
 
-425 users, 18,000/s message volume, CPU load 70%-90%:
+425 users, 18,000/s message volume, CPU load 70%-90%: REPEAT A FEW TIMES
 [percentiles_ms=[338,428,671]](2024-11-03_16-21,pb,uvloop,percentiles_ms=[338,428,671],accounts=425,actions=40,delay_before_act=148.75,delay_between_act=6,delay_between_connections=0.35)
 
 Message volume to number of users equation is approx 0.1x^2. 250 users ^ 2 = 62,500, *0.1 = 6,250 messages per second
