@@ -13,7 +13,7 @@ print(f"This should be 'upb': {api_implementation.Type()=}\n")
 message = message_pb2.ChatMessage()
 parsed_message = message_pb2.ChatMessage()
 
-message.sender = "Test Name"
+message.username = "Test Name"
 message.active_connections = 40
 message.memory_usage = 0.554781258874
 message.data.extend(["Hammer", "Radio"])
@@ -41,12 +41,12 @@ def perf_tests():
 
     for _ in range(NUM_TESTS):
         parsed_message.ParseFromString(binary_data)
-        x_dict = {
-                "name": parsed_message.sender,
-                "age": parsed_message.active_connections,
-                "random_float": parsed_message.memory_usage,
-                "items": parsed_message.data,
-        }
+        # x_dict = {
+        #         "name": parsed_message.username,
+        #         "age": parsed_message.active_connections,
+        #         "random_float": parsed_message.memory_usage,
+        #         "items": parsed_message.data,
+        # }
         # message_as_dict = MessageToDict(parsed_message, preserving_proto_field_name=True)
     t2 = time.perf_counter()
     proto_deserialize_time = (t2 - t1)*1000
@@ -67,27 +67,28 @@ def perf_tests():
 
     for _ in range(NUM_TESTS):
         x_1 = orjson.loads(x_dump)
+    # print(x_1)
     t2 = time.perf_counter()
     orjson_deserialize_time = (t2 - t1)*1000
     print(f"Orjson deserialize:   {orjson_deserialize_time:,.0f} ms")
     print(f"Orjson total:         {orjson_serialize_time + orjson_deserialize_time:,.0f} ms")
     print(f"Orjson file size:     {sys.getsizeof(x_dump)} b")
 
-    # # Json
-    # t0 = time.perf_counter()
-    # for _ in range(NUM_TESTS):
-    #     x_dump = json.dumps(x)
-    # t1 = time.perf_counter()
-    # json_serialize_time = (t1 - t0)*1000
-    # print(f"\nJson serialize:       {json_serialize_time:,.0f} ms")
+    # Json
+    t0 = time.perf_counter()
+    for _ in range(NUM_TESTS):
+        x_dump = json.dumps(x)
+    t1 = time.perf_counter()
+    json_serialize_time = (t1 - t0)*1000
+    print(f"\nJson serialize:       {json_serialize_time:,.0f} ms")
 
-    # for _ in range(NUM_TESTS):
-    #     x_1 = json.loads(x_dump)
-    # t2 = time.perf_counter()
-    # json_deserialize_time = (t2 - t1)*1000
-    # print(f"Json deserialize:     {json_deserialize_time:,.0f} ms")
-    # print(f"Json total:           {json_serialize_time + json_deserialize_time:,.0f} ms")
-    # print(f"Json file size:       {sys.getsizeof(x_dump)} b")
+    for _ in range(NUM_TESTS):
+        x_1 = json.loads(x_dump)
+    t2 = time.perf_counter()
+    json_deserialize_time = (t2 - t1)*1000
+    print(f"Json deserialize:     {json_deserialize_time:,.0f} ms")
+    print(f"Json total:           {json_serialize_time + json_deserialize_time:,.0f} ms")
+    print(f"Json file size:       {sys.getsizeof(x_dump)} b")
 
 async def ws_test(message: bytes):
     async with websockets.connect(TARGET) as ws:
