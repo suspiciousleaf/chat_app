@@ -28,6 +28,7 @@ class WebsocketConnectionError(Exception):
 
 
 class User:
+    """Virtual user class. Uses provided credentials to login to server, then perform the specified number of actions before disconnecting. Actions are randomly chosen between sending a randomly generated message, joining a new channel, and leaving a current channel, weighted towards sending a message. This is to simulate real user activity as accurately as possible."""
     def __init__(
         self, logger: Logger,  account: dict, actions: int = 0, delay_before_actions: int = 0, delay_between_actions: int = 2, test_channels: list = [],  
     ):
@@ -44,6 +45,7 @@ class User:
         self.listener_task = None
         
     async def authorize_account(self):
+        """Use provided credentials to get a bearer token"""
         if "access_token" in self.account:
             self.bearer_token = self.account.get("access_token")
         else:
@@ -71,7 +73,7 @@ class User:
         )
 
     async def get_auth_token(self) -> dict | None:
-        """Submits username and password to get a bearer token from the server"""
+        """Submits username and password to get a bearer token from the server, repeats if unsuccessful"""
         try:
             payload = {
                 "username": self.username,
@@ -95,6 +97,7 @@ class User:
         await self.send_message(formatted_message)
 
     async def send_message(self, message):
+        """Send the provided message over the websocket"""
         if self.performing_actions:
             try:
                 await self.client_websocket.send_message(message)
@@ -115,20 +118,17 @@ class User:
         self.channels.remove(channel_name)
 
     async def start_activity(self):
-        # self.logger.debug("Beginning actions")
         self.performing_actions = True
         await asyncio.sleep(self.delay_before_actions)
-        for i in range(self.actions):
+        for _ in range(self.actions):
             try:
-                await self.choose_action(i)
-                # await asyncio.sleep(random.randint(10, 50)/10) # Wait between 1 and 5 seconds before the next action
+                await self.choose_action()
                 await asyncio.sleep(self.delay_between_actions)
             except Exception as e:
                 self.logger.info(f"Error during activity: {type(e).__name__}: {e}")
         self.performing_actions = False
-        #     self.logger.debug("Actions completed")
 
-    async def choose_action(self, i):
+    async def choose_action(self):
         """Pick which action to perform"""
         # If user has no channel subscriptions, subscribe to a random selection
         if not self.channels:
@@ -140,7 +140,6 @@ class User:
         random_value = random.randint(0, 99)
         # 94% chance to send a message
         if random_value >= 6:
-            # self.logger.debug(f"Action {i+1}. RandInt({random_value}). Sending random message")
             await self.send_random_message()
         # 3% chance to join a new channel
         elif 5 >= random_value >= 3 and len(self.channels) < min(len(self.test_channels), 11):
@@ -151,12 +150,10 @@ class User:
                     if channel not in self.channels
                 ]
             )
-            # self.logger.debug(f"Action {i+1}. RandInt({random_value}). Joining channel: {channel_name}")
             await self.join_channel(channel_name)
         # 3% chance to leave a channel
         elif len(self.channels) >= 4:
             channel_name = random.choice(self.channels)
-            # self.logger.debug(f"Action {i+1}. RandInt({random_value}). Leaving channel: {channel_name}")
             await self.leave_channel(channel_name)
 
     async def send_random_message(self):
@@ -182,23 +179,12 @@ class User:
                 except asyncio.CancelledError:
                     pass  # This is expected
             await self.client_websocket.close()
-        # self.logger.debug("Logged out and disconnected")
 
 
     async def listen_for_messages(self):
         while self.connection_active:
             try:
-                # message_raw = await self.client_websocket.websocket.recv()
-                # message_raw = await self.client_websocket.receive_message()
                 message: dict = await self.client_websocket.receive_message()
-                # if message_raw is not None:
-                # if message is not None:
-                    # try:
-                    #     message: dict = orjson.loads(message_raw)
-                    # except JSONDecodeError:
-                    #     self.logger.debug(f"JSONDecodeError: {message_raw}")
-                    # except Exception as e:
-                    #     self.logger.info(f"{type(e).__name__}: {e}")
                 if message is not None:
                     event_type = message.get("event")
                     if event_type == "channel_subscriptions":
@@ -212,15 +198,10 @@ class User:
             except Exception as e:
                 await self.logout()
                 break
-                # if self.connection_active:
-                #     self.logger.info(f"Error receiving message: {e}")
-                #     # traceback.print_tb(e.__traceback__)
-                # else:
-                #     break 
 
 
     async def run(self):
-        """Initiate behaviour - connect to websocket and start programmed actions"""
+        """Initiate behavior - connect to websocket and start programmed actions"""
         await self.authorize_account()
         self.client_websocket: MyWebSocket = MyWebSocket(
             self.logger, 
