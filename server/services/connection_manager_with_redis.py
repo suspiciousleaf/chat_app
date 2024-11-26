@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 # from server.services.redis_manager import RedisManager
 # from server.services.db_manager import DatabaseManager
-from services.redis_manager import RedisManager
+from server.services.redis_manager import RedisManager
 from services.db_manager import DatabaseManager
 
 

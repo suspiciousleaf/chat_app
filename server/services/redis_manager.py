@@ -1,8 +1,8 @@
 import json
-from pathlib import Path
 import asyncio
-import redis
 
+import redis
+from pathlib import Path
 from dotenv import load_dotenv
 
 env_path = Path("..") / ".env"
