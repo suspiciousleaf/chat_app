@@ -9,6 +9,7 @@ import winloop
 SERVER_FILENAME = "server.main_server"
 
 def run():
+    """Run the server using winloop event loop"""
     winloop.install()
     # # Explicitly set the ProactorEventLoop for Windows
     # if hasattr(asyncio, "WindowsProactorEventLoopPolicy"):
