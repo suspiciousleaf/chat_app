@@ -22,6 +22,7 @@ WEBSOCKET_ENDPOINT = "/ws"
 
 
 class MyWebSocket:
+    """Class to authenticate and open a websocket connection"""
     def __init__(self, logger: Logger, auth_token: dict, username: str | None = None):
         self.logger = logger
         self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"
@@ -31,6 +32,7 @@ class MyWebSocket:
         self.connected = False
 
     async def connect(self):
+        """Establish the websocket connection"""
         while not self.connected:
             try:
                 extra_headers = {
@@ -64,6 +66,7 @@ class MyWebSocket:
                 await asyncio.sleep(5)
 
     def encode_message(self, message_data: dict) -> bytes:
+        """Serialize a dictionary into bytes via protobuf """
         try:
             message_object = ParseDict(message_data, message_pb2.ChatMessage())
 
@@ -74,7 +77,7 @@ class MyWebSocket:
             self.logger.warning(f"Exception during encode_message(): {type(e).__name__}: {e}")
 
     def decode_message(self, message_bytes: bytes) -> dict:
-        """Decode bytes serialized message"""
+        """Decode bytes serialized message to a dictionary"""
         try:
             parsed_message: message_pb2.ChatMessage = message_pb2.ChatMessage()
             parsed_message.ParseFromString(message_bytes)
@@ -86,18 +89,14 @@ class MyWebSocket:
             raise DecodeError(e)
 
     async def send_message(self, message: dict):
-        """Send message via WebSocket. Provide dict and it will be converted to protobuf message and serialized"""
+        """Send message via WebSocket. Provide dict and it will be converted to protobuf message and serialized. Includes reconnection logic if connection is lost."""
         if not self.connected:
-            # self.logger.info("Cannot send message, WebSocket is not connected.")
             raise ConnectionError
         try:
-            # await self.websocket.send(json.dumps(message))
-            # await self.websocket.send(orjson.dumps(message))
+
             message_bytes: bytes = self.encode_message(message)
             if message_bytes is not None:
                 await self.websocket.send(message_bytes)
-        # except JSONEncodeError as e:
-        #     self.logger.warning(f"JSONEncodeError: {e}: {message=}")
         except websockets.exceptions.ConnectionClosedOK:
             self.connected = False
             raise websockets.exceptions.ConnectionClosedOK
@@ -112,12 +111,10 @@ class MyWebSocket:
     async def receive_message(self) -> dict:
         """Receive messages from the WebSocket. Message will be deserialized before being returned"""
         if not self.connected:
-            # self.logger.info("Cannot receive message, WebSocket is not connected.")
             return 
         try:
             message_bytes: bytes = await self.websocket.recv()
             return self.decode_message(message_bytes)
-            # return await self.websocket.recv()
         except DecodeError as e:
             self.logger.warning(f"receive_message() Protobuf DecodeError: {e}")
         except websockets.exceptions.ConnectionClosedError as e:
@@ -130,11 +127,10 @@ class MyWebSocket:
             self.logger.info(f"An error occurred while receiving message: {type(e).__name__}: {e}")
 
     async def close(self):
-        """Close the WebSocket connection if it's open."""
+        """Close the WebSocket connection if open."""
         if self.websocket and self.connected:
             try:
                 await self.websocket.close()
-                # await asyncio.sleep(1)
                 self.logger.debug(f"{self.username}: WebSocket connection closed.")
             except ConnectionClosedError as e:
                 self.logger.debug(f"Connection closed unexpectedly during closure: ConnectionClosedError: {e}")
