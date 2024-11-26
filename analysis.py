@@ -1,8 +1,9 @@
 # Run this to do analysis on data from completed runs
 
 import json
-import numpy as np
 import logging
+
+import numpy as np
 
 from load_testing.load_tester import LoadTester
 
