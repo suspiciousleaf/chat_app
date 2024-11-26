@@ -1,12 +1,13 @@
 from os import getenv, path
-from dotenv import load_dotenv
-from fastapi import status, HTTPException
-from passlib.context import CryptContext
 import sqlite3
 import json
 from threading import local
 from contextlib import contextmanager
 import datetime
+
+from dotenv import load_dotenv
+from fastapi import status, HTTPException
+from passlib.context import CryptContext
 
 load_dotenv()
 
@@ -27,6 +28,17 @@ class DatabaseConnectionError(Exception):
 
 class DatabaseManager:
     def __init__(self):
+        """
+        Initializes a `DatabaseManager` instance.
+
+        Attributes:
+            DB_NAME (str): Name of the database file, retrieved from environment variables.
+            DB_FILEPATH (str): Absolute path to the database file.
+            _local (threading.local): Thread-local storage for SQLite connections.
+
+        Automatically initializes the database schema if it does not exist.
+        """
+
         self.DB_NAME = DB_NAME
         # This is used to ensure a constant filepath for the database file inside the services directory, otherwise it changes based on the cwd
         self.DB_FILEPATH = self.create_db_filepath()
@@ -35,6 +47,16 @@ class DatabaseManager:
 
     @contextmanager
     def get_connection(self):
+        """
+        Context manager for retrieving a thread-local SQLite connection.
+
+        Yields:
+            sqlite3.Connection: A connection to the SQLite database.
+            
+        Notes:
+            The connection is kept open for reuse and not closed automatically.
+        """
+
         if not hasattr(self._local, "conn"):
             self._local.conn = sqlite3.connect(self.DB_FILEPATH)
         try:
@@ -44,6 +66,16 @@ class DatabaseManager:
 
     @contextmanager
     def get_cursor(self):
+        """
+        Context manager for retrieving a database cursor.
+
+        Yields:
+            sqlite3.Cursor: A cursor for executing SQL queries.
+            
+        Notes:
+            The cursor is closed automatically after use.
+        """
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -52,6 +84,13 @@ class DatabaseManager:
                 cursor.close()
 
     def init_database(self) -> None:
+        """Initializes the database schema by creating the required tables and indexes.
+
+        Creates:
+            - `users` table: Stores user data.
+            - `messages` table: Stores chat messages.
+            - `idx_messages_channel` index: Speeds up queries on the `messages` table by channel."""
+        
         create_users_table = """
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY UNIQUE NOT NULL,
@@ -80,7 +119,17 @@ class DatabaseManager:
             cur.connection.commit()
 
     def insert_query(self, query: str, values: dict) -> None:
-        """Function to run an INSERT SQL query"""
+        """
+        Executes an INSERT SQL query.
+
+        Args:
+            query (str): The SQL query string.
+            values (dict): Dictionary of parameters to bind to the query.
+
+        Raises:
+            Exception: Prints the error and rolls back the transaction on failure.
+        """
+
         with self.get_cursor() as cur:
             try:
                 cur.execute(query, values)
@@ -90,7 +139,16 @@ class DatabaseManager:
                 print(f"Error in insert_query({query=}, {values=}): \n{e}")
 
     def select_query(self, query: str, values: dict | None = None) -> list:
-        """Function to run a SELECT query"""
+        """
+        Executes a SELECT SQL query.
+
+        Args:
+            query (str): The SQL query string.
+            values (dict | None): Dictionary of parameters to bind to the query. Defaults to None.
+
+        Returns:
+            list: Query results as a list of tuples. Returns an empty list if an error occurs.
+        """
         with self.get_cursor() as cur:
             try:
                 if values:
@@ -103,14 +161,20 @@ class DatabaseManager:
                 return []
 
     def batch_insert_messages(self, messages: list[dict]) -> None:
-        """Insert a batch of messages into the database as a single transaction.
-        'messages' format:
-        [{"username": username: str,
-          "channel": channel: str,
-          "content": content: str},
-          "sent_at": sent_at: str
-          {...}]
         """
+        Inserts a batch of messages into the `messages` table as a single transaction.
+
+        Args:
+            messages (list[dict]): List of message dictionaries. Each dictionary must contain:
+                - username (str)
+                - channel (str)
+                - content (str)
+                - sent_at (str, ISO 8601 format)
+
+        Raises:
+            Exception: Prints the error and rolls back the transaction on failure.
+        """
+
         with self.get_cursor() as cur:
             try:
                 batch_insert_query = "INSERT INTO messages (username, channel, content, sent_at) VALUES (:username, :channel, :content, :sent_at)"
@@ -125,14 +189,32 @@ class DatabaseManager:
                 return None
 
     def retrieve_existing_usernames(self) -> set:
-        """Retrieve all account usernames"""
+        """
+        Fetches all usernames from the `users` table.
+
+        Returns:
+            set: A set of all usernames.
+        """
         query = "SELECT username FROM users"
         usernames_raw = self.select_query(query=query)
         usernames: set = set(username[0] for username in usernames_raw)
         return usernames
 
     def create_account(self, username: str, password: str) -> dict | None:
-        """Create a new account"""
+        """
+        Creates a new user account.
+
+        Args:
+            username (str): The desired username.
+            password (str): The plaintext password.
+
+        Returns:
+            dict: Success message on account creation.
+            None: If an error occurs during account creation.
+
+        Raises:
+            HTTPException: If the username already exists.
+        """
 
         username = username.strip()
 
@@ -167,7 +249,13 @@ class DatabaseManager:
             )
 
     def retrieve_existing_accounts(self) -> dict:
-        """Retrieve all accounts"""
+        """
+        Fetches all accounts from the `users` table.
+
+        Returns:
+            dict: A dictionary of accounts where keys are usernames, and values are account details.
+        """
+
         users = self.select_query(
             "SELECT username, password_hashed, disabled FROM users"
         )
@@ -182,7 +270,16 @@ class DatabaseManager:
         return accounts
 
     def retrieve_channels(self, username: str) -> set:
-        """Retrieve all channels that a user is subscribed to"""
+        """
+        Fetches the channels a user is subscribed to.
+
+        Args:
+            username (str): The username of the user.
+
+        Returns:
+            set: A set of channel names.
+        """
+
         query = "SELECT channels FROM users WHERE username = :username"
         values = {"username": username}
         channels_raw = self.select_query(query, values)
@@ -191,7 +288,19 @@ class DatabaseManager:
         return channels
 
     def retrieve_message_history(self, channels: set) -> list[dict]:
-        """Retrieve all messages for the specified channels"""
+        """
+        Fetches the message history for the specified channels.
+
+        Args:
+            channels (set): A set of channel names.
+
+        Returns:
+            list[dict]: List of message dictionaries, each containing:
+                - username (str)
+                - channel (str)
+                - content (str)
+                - sent_at (str)
+        """
         placeholders = ",".join(["?" for _ in channels])
         query = f"SELECT username, channel, content, sent_at FROM messages WHERE channel in ({placeholders})"
         message_history_raw = self.select_query(query, list(channels))
@@ -207,7 +316,13 @@ class DatabaseManager:
         ]
 
     def add_channel(self, username: str, channel: str) -> None:
-        """Add channel to user's subscribed channels"""
+        """
+        Adds a channel to the list of channels a user is subscribed to.
+
+        Args:
+            username (str): The username of the user.
+            channel (str): The channel to be added.
+        """
         current_channels: set = self.retrieve_channels(username)
 
         if channel not in current_channels:
@@ -220,7 +335,13 @@ class DatabaseManager:
         )
 
     def remove_channel(self, username: str, channel: str) -> None:
-        """Remove channel from user's subscribed channels"""
+        """
+        Removes a channel from the list of channels a user is subscribed to.
+
+        Args:
+            username (str): The username of the user.
+            channel (str): The channel to be removed.
+        """
         current_channels: set = self.retrieve_channels(username)
 
         if channel in current_channels:
@@ -233,7 +354,16 @@ class DatabaseManager:
         )
 
     def update_query(self, query: str, values: dict) -> None:
-        """Function to run an UPDATE query"""
+        """
+        Executes an UPDATE SQL query.
+
+        Args:
+            query (str): The SQL query string.
+            values (dict): Dictionary of parameters to bind to the query.
+
+        Raises:
+            Exception: Prints the error and rolls back the transaction on failure.
+        """
         with self.get_cursor() as cur:
             try:
                 cur.execute(query, values)
@@ -243,22 +373,47 @@ class DatabaseManager:
                 print(f"Error in update_query({query=}, {values=}): \n{e}")
 
     def list_tables(self) -> list:
+        """
+        Fetches the names of all tables in the database.
+
+        Returns:
+            list: List of table names as tuples.
+        """
         query = "SELECT name FROM sqlite_master WHERE type=:name;"
         values = {"name": "table"}
         tables: list = self.select_query(query, values)
         return tables
 
     def create_db_filepath(self) -> path:
+        """
+        Generates the absolute file path for the database.
+
+        Returns:
+            str: The absolute file path of the database file.
+        """
         base_dir = path.dirname(path.abspath(__file__))
         return path.join(base_dir, "db_data", DB_NAME)
 
     def read_db_filepath(self) -> str:
+        """
+        Retrieves the file path of the current database connection.
+
+        Returns:
+            str: The database file path.
+        """
         with self.get_connection() as conn:
             database_path = conn.execute("PRAGMA database_list").fetchone()[2]
             return f"Database file path: {database_path}"
 
     async def verify_connection_and_tables(self) -> dict:
-        """Verify if the database connection is working and if the correct tables exist"""
+        """
+        Verifies the database connection and checks if the required tables exist.
+
+        Returns:
+            dict: A dictionary with:
+                - "status" (bool): True if all checks pass, False otherwise.
+                - "details" (str | None): Error details if checks fail.
+        """
         required_tables = {"users", "messages"}
         try:
             with self.get_cursor() as cur:
@@ -283,24 +438,38 @@ class DatabaseManager:
             return {"status": False, "details": "unexpected error"}
 
     def close_all(self):
+        """
+        Closes the thread-local database connection.
+        """
         self._local.conn.close()
 
     @staticmethod
     def adapt_datetime_iso(val: datetime.datetime) -> str:
-        """Adapt datetime.datetime to UTC ISO 8601 string."""
+        """
+        Converts a datetime object to a UTC ISO 8601 string.
+
+        Args:
+            val (datetime.datetime): The datetime object to convert.
+
+        Returns:
+            str: The ISO 8601 formatted string.
+        """
         return val.astimezone(datetime.timezone.utc).isoformat()
 
     @staticmethod
     def convert_datetime(val: str) -> datetime.datetime:
-        """Convert ISO 8601 string to datetime.datetime object."""
+        """
+        Converts an ISO 8601 string to a datetime object.
+
+        Args:
+            val (str): The ISO 8601 string to convert.
+
+        Returns:
+            datetime.datetime: The resulting datetime object.
+        """
         return datetime.datetime.fromisoformat(val)  # .decode()
 
 
 # Create instance to be imported
 db = DatabaseManager()
 
-# Usage
-# db.retrieve_message_history(["welcome", "hello"])
-# print(f"{db.list_tables()=}")
-# print(db.read_db_filepath())
-# print(db.retrieve_channels("username_1"))
