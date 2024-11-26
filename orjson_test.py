@@ -1,12 +1,14 @@
-import orjson
+import sys
 import json
 import time
-import websockets
 import asyncio
-import sys
-import message_pb2
+import websockets
+
+import orjson
 from google.protobuf.internal import api_implementation
 from google.protobuf.json_format import MessageToDict
+
+import message_pb2
 print(f"This should be 'upb': {api_implementation.Type()=}\n")
 
 
