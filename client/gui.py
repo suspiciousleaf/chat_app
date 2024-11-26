@@ -4,9 +4,6 @@ import tkinter as tk
 from tkinter import ttk
 import asyncio
 import threading
-# import json
-# import orjson
-# from json import JSONDecodeError
 import requests
 from re import split as re_split
 from _tkinter import TclError
@@ -69,7 +66,7 @@ MAX_CHANNELS = 12
 #   "data": ["welcome", "hello",...]
 # }
 
-
+# Create and format logger
 logger = logging.getLogger('Client')
 handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -79,6 +76,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 class Chattr:
+    """Main class for the client"""
     def __init__(self):
         # Create instance attributes
         self.logger: logging.Logger = logger
@@ -210,6 +208,7 @@ class Chattr:
         username_entry.icursor(tk.END)
 
     def username_entry_return_bind_logic(self):
+        """Pressing "Enter" will either move the cursor to the password field, or submit the login request"""
         if self.entries["password_entry"].get():
             self.submit_login()
         else:
@@ -251,13 +250,15 @@ class Chattr:
         back_button.grid(row=3)
 
     def submit_login(self):
+        """Get auth token and submit login request"""
         self.auth_token = self.get_auth_token()
-        # This will create the chat screen if login is successfull
+        # This will create the chat screen if login is successful
         if self.auth_token:
             self.process_login()
             self.create_chat()
 
     def process_login(self):
+        """Create websocket object and start message listener"""
         self.connection_active = True
         self.client_websocket = MyWebSocket(
             self.logger,
@@ -266,6 +267,7 @@ class Chattr:
         asyncio.run_coroutine_threadsafe(self.message_listener_init(), self.loop)
 
     def process_logout(self):
+        """Log out and return to login screen"""
         self.connection_active = False
         self.create_startup_screen()
         self.loop.call_soon_threadsafe(
@@ -273,8 +275,7 @@ class Chattr:
         )
 
     def create_chat(self):
-        """Creates the main chat window if login is successfull"""
-
+        """Creates the main chat window if login is successful"""
         self.delete_all()
         self.message_text = tk.StringVar(value="")
         self.screen_text = tk.StringVar(value="Messages will appear here")
@@ -288,6 +289,7 @@ class Chattr:
         self.configure_chat_responsive()
 
     def create_logout_button(self):
+        """Create the logout button"""
         logout_button = ttk.Button(
             self.frames["bottom"],
             text="Log out",
@@ -298,6 +300,7 @@ class Chattr:
         self.buttons["logout"] = logout_button
 
     def create_send_button(self):
+        """Create send button"""
         send_button = ttk.Button(
             self.frames["bottom"], text="Send", command=self.send_message
         )
@@ -320,9 +323,9 @@ class Chattr:
 
     def create_signup_screen(self):
         """Create the sign up screen with input elements and buttons, called by clicking the "Sign up" button"""
+        # Clear the screen
         self.delete_widgets()
 
-        # Clear the screen
         self.create_signup_info_label()
         self.create_username_entry()
         self.create_password_entry()
@@ -330,6 +333,7 @@ class Chattr:
         self.create_back_button()
 
     def create_signup_info_label(self):
+        """Create label for login screen"""
         signup_info_label = ttk.Label(
             self.frames["login"],
             text="Enter username and password",
@@ -349,6 +353,7 @@ class Chattr:
         signup_button.grid(row=2)
 
     def submit_signup(self):
+        """Submit new account signup request"""
         account_info = {
             "username": self.username.get().strip(),
             "password": self.password.get().strip(),
@@ -391,23 +396,19 @@ class Chattr:
             print(f"An error occurred: {e}")
 
     def run_async_loop(self):
+        """"Start event loop"""
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
 
     async def message_listener_init(self):
+        """Connect to websocket and start message listener"""
         await self.client_websocket.connect()
         await self.listen_for_messages()
 
     async def listen_for_messages(self):
+        """MEssage listener loop to run while connection is active"""
         while self.connection_active:
             try:
-                # message_raw = await asyncio.wait_for(
-                #     self.client_websocket.websocket.recv(), timeout=1.0
-                # )
-                # message_raw = await asyncio.wait_for(
-                #     self.client_websocket.receive_message(), timeout=1.0
-                # )
-                # message: dict = self.decode_received_message(message_raw)
                 message: dict = await asyncio.wait_for(
                     self.client_websocket.receive_message(), timeout=1.0
                 )
@@ -441,7 +442,7 @@ class Chattr:
     def process_received_message(self, message: dict):
         """Format the received message and send it to the method to update the display"""
         message_username = message.get("username")
-        # If you sent the message, display sernder as "You", otherwise sender's username
+        # If you sent the message, display sender as "You", otherwise sender's username
         if message_username == self.username.get():
             message_username = "You"
         # Generate a string showing the message sent timestamp in HH:MM format for the local timezone of the client
@@ -462,16 +463,8 @@ class Chattr:
         self.nb_tabs[channel].config(state="disabled")
         self.nb_tabs[channel].yview(tk.END)  # Auto-scroll to the bottom
 
-    # def decode_received_message(self, message: bytes) -> dict:
-    #     try:
-    #         # return json.loads(message)
-    #         return orjson.loads(message)
-    #     except JSONDecodeError:
-    #         print(f"Could not decode bytes message: {message}")
-    #     except Exception as e:
-    #         print(f"Unknown error occurred when decoding message: {e}")
-
     def create_notebook(self):
+        """Create notebook object to hold channel tabs"""
         self.style = ttk.Style()
         self.style.configure(
             "lefttab.TNotebook", tabposition=tk.W + tk.N, tabplacement=tk.N + tk.EW
@@ -546,6 +539,7 @@ class Chattr:
             self.nb.add_context_menu.post(event.x_root, event.y_root)
 
     def leave_channel(self):
+        """Unsubscribe account from a channel, and remove tab in the GUI"""
         channel_name = self.context_menu_target_channel.get("channel_name")
         tab_index = self.context_menu_target_channel.get("tab_index")
 
@@ -619,6 +613,7 @@ class Chattr:
             )
 
     def set_active_channel(self, event=None):
+        """Set clicked on tab as the active channel"""
         text_entry = self.entries.get("write_message")
         if text_entry:
             text_entry.focus()
@@ -629,6 +624,7 @@ class Chattr:
             self.active_channel = None
 
     def build_channel_tabs(self, channels: list):
+        """Create tabs for the subscribed channels"""
         if isinstance(channels, list):
             channels.sort(key=self.natural_sort)
         for channel_name in channels:
@@ -643,6 +639,7 @@ class Chattr:
         ]
 
     def add_channel(self, channel_name):
+        """Add new channel in the GUI"""
         # Create a text field for the new channel
         text_field = tk.Text(self.nb, wrap="word", state="disabled")
         text_field.grid(row=0, column=0, sticky="nsew")
@@ -686,7 +683,8 @@ class Chattr:
             print(f"Error determining the right-clicked tab: {e}")
 
     def configure_login_responsive(self):
-        # Configure grid row and column weights for login responsive behaviour
+        """Configure the responsive behavior of the login screen"""
+        # Configure grid row and column weights for login responsive behavior
         self.window.grid_rowconfigure(0, weight=1)
         self.window.grid_columnconfigure(0, weight=1)
         self.frames["login"].grid_rowconfigure(0, weight=1)
@@ -694,7 +692,7 @@ class Chattr:
         self.frames["login"].grid_columnconfigure(1, weight=0)
 
     def configure_chat_responsive(self):
-        """Configure grid row and column weights for chat responsive behaviour"""
+        """Configure grid row and column weights for chat responsive behavior"""
         self.window.grid_rowconfigure(0, weight=1)
         self.window.grid_columnconfigure(0, weight=1)
 
@@ -708,10 +706,10 @@ class Chattr:
         self.frames["bottom"].grid_columnconfigure(1, weight=1)
 
     def send_message(self, event=None):
+        """Create message dictionary from text field and pass it to websocket to send"""
         message = self.entries["write_message"].get()
         if message.strip():  # Check if the message is not empty
             self.entries["write_message"].delete(0, tk.END)
-            # Message formatted as json to send to server
             formatted_message: dict = {
                 # Username is added in the server from the bearer token to ensure accuracy
                 "event": "message",
@@ -775,6 +773,7 @@ class Chattr:
         self.frames["login"] = frame
 
     def create_container_frame(self):
+        """Create the container Frame element"""
         container_frame = ttk.Frame(self.window)
         container_frame.grid(row=0, column=0, sticky="nsew")
         self.frames["container"] = container_frame
@@ -795,6 +794,7 @@ class Chattr:
         self.frames["bottom"] = frame
 
     async def check_server_status(self):
+        """Check the status of the server"""
         try:
             response = await asyncio.to_thread(requests.get, f"{URL}/", timeout=5)
             response.raise_for_status()
@@ -803,13 +803,16 @@ class Chattr:
             return "unavailable"
 
     def start_server_status_check(self):
+        """Loop to keep checking the server status until connection is verified"""
         asyncio.run_coroutine_threadsafe(self.update_server_status(), self.loop)
 
     async def update_server_status(self):
+        """Set server status to the response of the server status request loop"""
         self.server_status.set(await self.check_server_status())
         self.window.after(0, self.update_server_status_label)
 
     def update_server_status_label(self):
+        """Update the server status label"""
         if hasattr(self, "labels") and "server_status" in self.labels:
             self.labels["server_status"].config(
                 text=f"Server status: {self.server_status.get()}"
@@ -833,7 +836,7 @@ class Chattr:
             self.window.destroy()
 
     async def close_websocket_connection(self):
-        # Close the websocket connection if it exists
+        """Close the websocket connection if it exists"""
         if self.client_websocket:
             await self.client_websocket.close()
 
@@ -860,11 +863,6 @@ class Chattr:
             if self.connection_active:
                 self.on_closing()
             self.thread.join()
-
-# import logging
-# logger = logging.getLogger('websockets')
-# logger.setLevel(logging.DEBUG)
-# logger.addHandler(logging.StreamHandler())
 
 if __name__ == "__main__":
     chattr = Chattr()
