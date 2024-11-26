@@ -45,14 +45,42 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{ROUTER_PREFIX}/token")
 
 
 def verify_password(plaintext_password: str, password_hashed: str):
+    """
+    Verify that a plaintext password matches its hashed version.
+
+    Args:
+        plaintext_password (str): The plaintext password to verify.
+        password_hashed (str): The hashed password to compare against.
+
+    Returns:
+        bool: True if the password matches, False otherwise.
+    """
     return pwd_context.verify(plaintext_password, password_hashed)
 
 
 def get_password_hash(plaintext_password: str):
+    """
+    Hash a plaintext password using the configured hashing algorithm.
+
+    Args:
+        plaintext_password (str): The plaintext password to hash.
+
+    Returns:
+        str: The hashed password.
+    """
     return pwd_context.hash(plaintext_password)
 
 
 def get_user(username: str):
+    """
+    Retrieve a user from the database by username.
+
+    Args:
+        username (str): The username of the user to retrieve.
+
+    Returns:
+        UserInDB: The user object if found, None otherwise.
+    """
     accounts: dict = db.retrieve_existing_accounts()
     if username in accounts:
         user_data = accounts[username]
@@ -60,6 +88,16 @@ def get_user(username: str):
 
 
 def authenticate_user(username: str, password: str):
+    """
+    Authenticate a user by verifying their credentials.
+
+    Args:
+        username (str): The username of the user.
+        password (str): The plaintext password of the user.
+
+    Returns:
+        UserInDB: The authenticated user object if successful, False otherwise.
+    """
     user: UserInDB = get_user(username)
     if not user:
         return False
@@ -70,6 +108,16 @@ def authenticate_user(username: str, password: str):
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    """
+    Create a JSON Web Token (JWT) for the authenticated user.
+
+    Args:
+        data (dict): The payload data to encode in the token.
+        expires_delta (timedelta | None): Optional expiration duration for the token.
+
+    Returns:
+        str: The encoded JWT.
+    """
     to_encode: dict = data.copy()
 
     # Expiry is compared to UTC time on validation, so it must be set to UTC + delta
@@ -86,19 +134,17 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
-    """_summary_
+    """
+    Retrieve the current user based on the provided JWT token.
 
     Args:
-        token (str, optional): _description_. Defaults to Depends(oauth2_scheme).
+        token (str): The OAuth2 token provided in the request.
 
     Raises:
-        credential_exception: _description_
-        HTTPException: _description_
-        credential_exception: _description_
-        credential_exception: _description_
+        HTTPException: If the token is invalid, expired, or the user cannot be found.
 
     Returns:
-        _type_: _description_
+        UserInDB: The current authenticated user.
     """
     credential_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -135,16 +181,17 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
 async def get_current_active_user(
     current_user: UserInDB = Depends(get_current_user),
 ) -> UserInDB:
-    """_summary_
+    """
+    Retrieve the current active user, ensuring the account is not disabled.
 
     Args:
-        current_user (UserInDB, optional): _description_. Defaults to Depends(get_current_user).
+        current_user (UserInDB): The authenticated user from the token.
 
     Raises:
-        HTTPException: _description_
+        HTTPException: If the user's account is disabled.
 
     Returns:
-        _type_: _description_
+        UserInDB: The current active user.
     """
     if current_user.disabled:
         raise HTTPException(
@@ -161,7 +208,18 @@ router = APIRouter(prefix=ROUTER_PREFIX)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> dict:
-    # print(f"/auth/token post request received: {form_data.username}")
+    """
+    Authenticate a user and generate an access token.
+
+    Args:
+        form_data (OAuth2PasswordRequestForm): The login form data containing username and password.
+
+    Raises:
+        HTTPException: If the credentials are invalid.
+
+    Returns:
+        dict: A dictionary containing the access token and token type.
+    """
     user: UserInDB = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -180,9 +238,24 @@ async def login_for_access_token(
 
 @router.get("/")
 def ping() -> str:
+    """
+    Health check endpoint for the authentication router.
+
+    Returns:
+        str: A simple message indicating the router is running.
+    """
     return "Auth router is running"
 
 
 @router.get("/secure")
 def ping_secure(current_user: User = Depends(get_current_active_user)) -> str:
+    """
+    Secure health check endpoint for the authentication router.
+
+    Args:
+        current_user (User): The currently authenticated and active user.
+
+    Returns:
+        str: A message indicating the secure endpoint is running.
+    """
     return "Secure auth router is running"
