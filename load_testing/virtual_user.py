@@ -1,10 +1,10 @@
-import aiohttp
 import asyncio
 import random
 from logging import Logger
 from websockets import ConnectionClosedOK
 from os import getenv
 
+import aiohttp
 from dotenv import load_dotenv
 
 from client.services.client_websocket import MyWebSocket

@@ -1,13 +1,13 @@
-import requests
 import asyncio
 import json
-import random
 import time
 from os import getenv
 import csv
-import aiohttp
 
+import aiohttp
+import requests
 from dotenv import load_dotenv
+
 from sample_words import sample_words
 
 load_dotenv()

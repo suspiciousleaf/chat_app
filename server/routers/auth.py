@@ -1,11 +1,13 @@
+from os import getenv
+from datetime import datetime, timedelta, timezone
+
 from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from datetime import datetime, timedelta, timezone
 from jose import JWTError, ExpiredSignatureError, jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
-from os import getenv
+
 try:
     from services.db_manager import db
 except:

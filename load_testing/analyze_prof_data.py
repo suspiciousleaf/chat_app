@@ -1,7 +1,8 @@
-import pstats
-from graphviz import Source
 import subprocess
 import sys
+import pstats
+
+from graphviz import Source
 
 # Define the datetime string for filenames
 datetime_string = "2024-10-31_20-09"

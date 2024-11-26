@@ -1,16 +1,14 @@
 import time
 import asyncio
-from pathlib import Path
-from os import getenv
 import datetime
-from sys import getsizeof
 from logging import Logger
 import cProfile
 import os
+from os import getenv
 
+from pathlib import Path
 from fastapi import WebSocket
-from fastapi.websockets import WebSocketState, WebSocketDisconnect
-# from starlette.websockets import WebSocketDisconnect
+from fastapi.websockets import WebSocketDisconnect
 from dotenv import load_dotenv
 import psutil
 
@@ -41,7 +39,31 @@ USE_CPROFILE = getenv("USE_CPROFILE") == "True"
 
 
 class ConnectionManager:
+    """
+    Manages WebSocket connections, channels, and message broadcasting for a chat application.
+
+    Attributes:
+        logger (Logger): Logger instance for debugging and error reporting.
+        db (DatabaseManager): Handles database interactions.
+        listener_task (asyncio.Task): Background task for handling cached messages.
+        active_connections (dict): Tracks active WebSocket connections and their subscribed channels.
+        channel_subscribers (dict): Maps channels to their active subscribers.
+        message_cache (list): Stores messages temporarily before uploading to the database.
+        time_last_message_backup (int): Timestamp of the last message cache upload.
+        load_testing (bool): Indicates if the server is under load testing.
+        ema_window (int): Window size for exponential moving average calculations.
+        alpha (float): Smoothing factor for exponential moving average.
+        run_profiling (bool): Whether cProfile is enabled for performance profiling.
+        pr (cProfile.Profile | None): cProfile instance for profiling.
+    """
     def __init__(self, logger:Logger, db: DatabaseManager):
+        """
+        Initializes the ConnectionManager.
+
+        Args:
+            logger (Logger): Logger instance.
+            db (DatabaseManager): Database manager for handling database operations.
+        """
         self.logger: Logger = logger
         self.db: DatabaseManager = db
         self.listener_task = None
@@ -52,8 +74,8 @@ class ConnectionManager:
         self.message_cache: list[dict] = []
         self.time_last_message_backup: int = round(time.time())
         self.load_testing: bool = False
-        # self.message_volume = 0
-        # self.message_volume_timer = None
+        self.message_volume = 0
+        self.message_volume_timer = None
         self.ema_window = 3
         self.alpha = 2 / (self.ema_window + 1)  # Smoothing factor based on window size
         self.run_profiling: bool = USE_CPROFILE
@@ -61,6 +83,13 @@ class ConnectionManager:
         
 
     async def connect(self, websocket: WebSocket, username: str):
+        """
+        Establishes a WebSocket connection and subscribes the user to their channels.
+
+        Args:
+            websocket (WebSocket): The WebSocket connection instance.
+            username (str): The username of the connecting client.
+        """
         await websocket.accept()
         channels: set = self.db.retrieve_channels(username)
         self.active_connections[username] = {"ws": websocket, "channels": channels}
@@ -80,6 +109,7 @@ class ConnectionManager:
             
         else:
             await self.send_channel_subscriptions(websocket, channels)
+            # Channel message history is currently disabled
             # await self.send_channel_history(websocket, channels)
 
         # Starts the message listener once at least one user is connected.
@@ -90,19 +120,39 @@ class ConnectionManager:
         self.logger.info(f"Active connections: {len(self.active_connections)}")
 
     async def send_channel_subscriptions(self, websocket: WebSocket, channels: set):
-        """Send a formatted message to the client with a list of channels that the user account is subscribed to"""
+        """
+        Sends a list of the user's channel subscriptions.
+
+        Args:
+            websocket (WebSocket): The WebSocket instance to send the message to.
+            channels (set): Set of channel names the user is subscribed to.
+        """
 
         message_data: dict = {"event": "channel_subscriptions", "data": list(channels)}
-        # await websocket.send_text(json.dumps(message_data))
-        # await websocket.send_bytes(orjson.dumps(message_data))
         message_bytes: bytes = self.encode_message(message_data)
         await self.send_bytes_message(websocket, message_bytes)
 
     async def send_bytes_message(self, websocket: WebSocket, message_bytes: bytes):
+        """
+        Sends a binary message over the WebSocket.
+
+        Args:
+            websocket (WebSocket): The WebSocket connection to send the message to.
+            message_bytes (bytes): The binary message data.
+        """
         if message_bytes is not None:
             await websocket.send_bytes(message_bytes)
 
     def encode_message(self, message_data: dict) -> bytes:
+        """
+        Encodes a message into a binary format using protobuf.
+
+        Args:
+            message_data (dict): The message data to encode.
+
+        Returns:
+            bytes: The encoded message.
+        """
         try:
             message_object = ParseDict(message_data, message_pb2.ChatMessage())
 
@@ -130,7 +180,7 @@ class ConnectionManager:
 
 
     #     # Message history can exceed the maximum size for a websocket message (1MB), so the section below checks the size and breaks it down into multiple messages if it exceeds this limit. Currently not very performant as it serializes each message twice
-    #     #! Size count is probably broken by using orjson or protobuf
+    #     #! Size count is broken by using orjson or protobuf
     #     history_message = {"event": "message history", "data": []}
     #     max_size = 1024 * 900  # 1 MB size limit for websocket message, with an allowance for getsizeof inaccurate estimate
 
@@ -155,7 +205,13 @@ class ConnectionManager:
     #         await self.encode_send_message(websocket, message_history)
 
     async def leave_channel(self, username: str, channel: str):
-        """Remove channel subscription for username"""
+        """
+        Removes the user from a channel subscription.
+
+        Args:
+            username (str): The username of the user leaving the channel.
+            channel (str): The name of the channel to leave.
+        """
         self.db.remove_channel(username, channel)
         # Check channel is present in list of active users and channel subscriptions, and remove it
         if channel in self.active_connections[username]["channels"]:
@@ -164,7 +220,13 @@ class ConnectionManager:
             self.channel_subscribers[channel].pop(username)
 
     async def add_channel(self, username, channel: str):
-        """Add a new channel for username"""
+        """
+        Subscribes a user to a new channel.
+
+        Args:
+            username (str): The username of the user.
+            channel (str): The name of the channel to subscribe to.
+        """
         # Add channel to username's channel list in database
         self.db.add_channel(username, channel)
         # Add channel to active_connections and channel_subscribers
@@ -182,9 +244,12 @@ class ConnectionManager:
         # )
 
     async def disconnect(self, username: str):
-        # TODO Could use this to send a 'user disconnected' message to the channel
+        """
+        Handles user disconnection, unsubscribing them from channels and closing the connection. If user is Monitor, stop monitoring.
 
-        # Loop through all channels that a username is subscribed to, and remove that username from each channel's dict of subscribed users. If that channel no longer has any subscribed users connected, remove it from the dict of active channels. Finally remove user from the dict of active connections
+        Args:
+            username (str): The username of the disconnecting user.
+        """
         if username == "monitor":
             self.load_testing = False
             self.logger.info("Stopped load testing")
@@ -220,9 +285,13 @@ class ConnectionManager:
             self.logger.info("No active connections, stopping listener. Message cache uploaded")
 
     async def broadcast(self, message: dict):
-        """Send message to all active connections that are subscribed to that channel"""
+        """
+        Sends a message to all clients subscribed to a specific channel.
+
+        Args:
+            message (dict): The message data to broadcast.
+        """
         channel = message.get("channel")
-        # message_raw = orjson.dumps(message)
         closed_connections = []
         tasks = []
 
@@ -231,7 +300,6 @@ class ConnectionManager:
         for user, websocket in self.channel_subscribers.get(channel, {}).items():
             # Append the send_message task to the list of tasks
             tasks.append(self.send_message(user, websocket, message_bytes, closed_connections))
-            # tasks.append(self.send_message(user, websocket, message_raw, closed_connections))
         
         # Gather and await the results of the tasks
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -248,10 +316,18 @@ class ConnectionManager:
 
 
     async def send_message(self, user: str, websocket: WebSocket, message_bytes: bytes, closed_connections: list):
+        """
+        Sends a message to a specific user.
+
+        Args:
+            user (str): The username of the recipient.
+            websocket (WebSocket): The WebSocket connection for the user.
+            message_bytes (bytes): The binary message data.
+            closed_connections (list): List of users with closed connections.
+        """
         if user not in self.active_connections:
             return
         try:
-            # await websocket.send_bytes(message_raw)
             await self.send_bytes_message(websocket, message_bytes)
             if self.load_testing:
                 self.message_volume += 1
@@ -267,7 +343,15 @@ class ConnectionManager:
                 closed_connections.append(user)
 
     def decode_message(self, message_bytes: bytes) -> dict:
-        """Decode bytes serialized message using MessageToDict"""
+        """
+        Decodes a binary message using protobuf.
+
+        Args:
+            message_bytes (bytes): The binary message data.
+
+        Returns:
+            dict: The decoded message data.
+        """
         try:
             parsed_message = message_pb2.ChatMessage()
             parsed_message.ParseFromString(message_bytes)
@@ -293,11 +377,17 @@ class ConnectionManager:
         except Exception as e:
             raise DecodeError(e)
 
-    # async def handle_incoming_message(self, message: dict):
+
     async def handle_incoming_message(self, message_bytes: bytes, username: str):
+        """
+        Processes an incoming message and handles the appropriate action.
+
+        Args:
+            message_bytes (bytes): The binary message data.
+            username (str): The username of the sender.
+        """
         try:
             message: dict = self.decode_message(message_bytes)
-            # self.logger.debug(f"Received: {message}")
             message["username"] = username
             if message.get("event") == "message":
                 await self.broadcast(message)
@@ -318,7 +408,9 @@ class ConnectionManager:
 
 
     async def start_listener(self):
-        """Method to take cached messages and batch upload them to the database if conditions are met"""
+        """
+        Starts a background task to monitor and handle cached messages.
+        """
         while True:
             num_messages: int = len(self.message_cache)
             current_time: int = round(time.time())
@@ -344,7 +436,9 @@ class ConnectionManager:
             await asyncio.sleep(1)
 
     async def upload_cached_messages(self):
-        """Batch inserts all cached messages into database and resets upload timer"""
+        """
+        Uploads cached messages to the database in batch mode.
+        """
         if self.db.batch_insert_messages(self.message_cache):
             self.message_cache.clear()
             self.time_last_message_backup = round(time.time())
@@ -353,14 +447,19 @@ class ConnectionManager:
             pass
 
     async def handle_perf_ping(self, message: dict):
-        """Gather required performance data and send it to the monitor"""
+        """
+        Handles performance test pings and sends back performance metrics.
+
+        Args:
+            message (dict): The performance test message data.
+        """
         try:
             username = message.get("username")
             perf_test_id = message.get("perf_test_id")
             active_connections = len(self.active_connections)
             cpu_load = psutil.cpu_percent(interval=None, percpu=True)
             memory_usage = psutil.virtual_memory().percent
-            # Calculate the time since the messave volume counter was set to 0, used to estimate a volume per second value. If the time interval is too low, set it to 0.25s to prevent excessively high numbers caused by dividing by values close to 0.
+            # Calculate the time since the message volume counter was set to 0, used to estimate a volume per second value. If the time interval is too low, set it to 0.25s to prevent excessively high numbers caused by dividing by values close to 0.
             mv_time_interval = time.perf_counter() - self.message_volume_timer
             if mv_time_interval < 0.25:
                 mv_time_interval = 0.25
@@ -391,10 +490,16 @@ class ConnectionManager:
             self.logger.warning(f"Error sending perf response: {e}")
 
     def start_profiling(self):
+        """
+        Starts the cProfile performance profiling.
+        """
         self.pr = cProfile.Profile()
         self.pr.enable()
 
     def stop_profiling(self):
+        """
+        Stops cProfile and saves profiling data to a file.
+        """
         self.pr.disable()
         current_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
         if "Programming" not in os.getcwd():

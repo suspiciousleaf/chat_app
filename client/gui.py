@@ -2,14 +2,15 @@ import datetime
 from os import getenv
 import tkinter as tk
 from tkinter import ttk
+from _tkinter import TclError
 import asyncio
 import threading
-import requests
 from re import split as re_split
-from _tkinter import TclError
 import logging
 
+import requests
 from dotenv import load_dotenv
+
 from client.services.client_websocket import MyWebSocket
 
 LARGE_FONT_STYLE = ("Arial", 40, "bold")
