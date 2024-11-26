@@ -1,8 +1,5 @@
 import time
 import asyncio
-# import json
-# from json import JSONDecodeError
-# import orjson
 import traceback
 from pprint import pprint
 from logging import Logger
@@ -10,27 +7,25 @@ from logging import Logger
 from load_testing.virtual_user import User
 
 class Monitor(User):
+    """Monitor object to send pings to the server for performance metrics and store the data"""
     def __init__(self, logger: Logger, account: dict):
         super().__init__(logger, account)
-        self.perf_data: dict = {} #{channel:{} for channel in self.test_channels}
+        self.perf_data: dict = {}
         self.perf_test_id = 1
         self.logger.info(f"Created: {self}")
         
         # Info to test/get from server:
-        # message ping time
+        # Message latency
         # Server CPU load
         # Server memory usage
         # Server active accounts
-        # Subscribers to that channel - ensure ping reply is sent to monitor after all other users in channel
         
     async def start_activity(self):
+        """Begin sending pings, once per second"""
         self.logger.info("Monitor.start_activity()")
-        # Join all channels, send message every X seconds, time how long until it returns. Maybe also join and leave channels and see how long it takes. Use a while True loop rather than X actions to ensure it is live throughout the entire test.
-        # await self.match_test_channel_subscriptions()
         while self.connection_active:
-            # for channel in self.channels:
             try:
-                await self.send_perf_ping() #channel)
+                await self.send_perf_ping()
                 await asyncio.sleep(1)
             except asyncio.CancelledError:
                 break
@@ -71,15 +66,9 @@ class Monitor(User):
         self.logger.debug("Monitor listening for messages")
         while self.connection_active:
             try:
-                # message_str = await self.client_websocket.websocket.recv()
-                # message_raw = await self.client_websocket.receive_message()
                 message = await self.client_websocket.receive_message()
                 self.logger.debug(f"Monitor received: {message=}")
                 if message is not None:
-                    # try:
-                    #     message: dict = orjson.loads(message_raw)
-                    # except JSONDecodeError as e:
-                    #     self.logger.warning(f"JSONDecodeError: {e}: {message_raw=}")
                     event_type = message.get("event")
                     if event_type == "perf_test":
                         await self.handle_perf_response(message)
@@ -93,14 +82,6 @@ class Monitor(User):
                 else:
                     self.logger.warning(f"Monitor listener Exception: {self.connection_active=}, {e}", exc_info=True)
                     break 
-
-    async def match_test_channel_subscriptions(self):
-        """Ensure monitor is connected to all test channels, and no other channels"""
-        for channel in set(self.test_channels).union(self.channels):
-            if channel not in self.channels:
-                await self.join_channel(channel)
-            elif channel not in self.test_channels:
-                await self.leave_channel(channel)
 
 
     def __repr__(self):
