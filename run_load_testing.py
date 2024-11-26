@@ -7,7 +7,7 @@ import logging
 from load_testing.load_tester import LoadTester
 
 
-NUM_ACCOUNTS = 425
+NUM_ACCOUNTS = 400
 
 NUM_ACTIONS = 40
 

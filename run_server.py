@@ -1,8 +1,9 @@
 # import asyncio
+import os
+
 from uvicorn.config import Config
 from uvicorn.server import Server
 import winloop
-import os
 
 
 SERVER_FILENAME = "server.main_server"
