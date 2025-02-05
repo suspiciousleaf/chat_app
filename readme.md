@@ -64,9 +64,15 @@ For detailed insights into the application's performance and scalability, refer 
 ### Tech Stack
 
 GUI: Tkinter
-Server: 
+
+Server: FastAPI
+
 Database: SQLite
+
 Serialization: Protobuf
+
 Authentication: OAuth2 with JWT
+
 Concurrency: asyncio with uvloop
+
 Deployment: Docker
