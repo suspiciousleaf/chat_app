@@ -26,7 +26,7 @@ The Chattr project is divided into three main components:
 ## Getting Started  
 ### Prerequisites  
 - Docker  
-- Create a virtual environment using requirements.txt
+- Create a virtual environment using `requirements.txt`
 
 ### Installation  
 1. Clone the repository:  
