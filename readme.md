@@ -26,21 +26,21 @@ The Chattr project is divided into three main components:
 
 ### Installation  
 1. Clone the repository:  
-   git clone https://github.com/suspiciousleaf/chat_app.
+   git clone `https://github.com/suspiciousleaf/chat_app.git`
 2. Navigate to the server directory:
    cd 
 3. Comment the correct section of the `docker-compose.yaml` file if running locally or in a container
-4. Build a .env following the .env.example format
+4. Build a `.env` following the `.env.example` format
 5. Either:
    a. Start the Docker container:
-      docker-compose up --build  
+      `docker-compose up --build`  
    b. Start Uvicorn:
-      uvicorn main_server:app
+      `uvicorn main_server:app`
 6. Start the GUI client, it will perform a health check on the server:
-   cd .. / python run_client.py
-7. Create an account for yourself, for the monitor (using the credentials you specified in the .env), and run load_testing/create_accounts.py to generate accounts for the virtual users
-8. run run_load_testing.py with your chosen constants to initiate a load test. Activity can be viewed via the client, and once it is complete data will be graphed and displayed / saved.
-9.  if USE_cPROFILE is set to True in the .env file, cProfile will run on the server during the load test. load_testing/analyze_prof_data.py can be used to generate flame graphs and analysis from the profile data.
+   `cd ..` / `python run_client.py`
+7. Create an account for yourself, for the monitor (using the credentials you specified in the `.env`), and run `load_testing/create_accounts.py` to generate accounts for the virtual users
+8. run `run_load_testing.py` with your chosen constants to initiate a load test. Activity can be viewed via the client, and once it is complete data will be graphed and displayed / saved.
+9.  if `USE_cPROFILE = True` in the `.env` file, cProfile will run on the server during the load test. `load_testing/analyze_prof_data.py` can be used to generate flame graphs and analysis from the profile data.
 
 ### Performance Analysis and Scalability Study
 For detailed insights into the application's performance and scalability, refer to the Performance Analysis Report and Scalability Study. The Performance Analysis Report includes performance data from before and after the performance improvements, including graphs as produced by the load test, plus targets and achievements. 
