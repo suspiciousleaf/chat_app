@@ -29,8 +29,15 @@ class WebsocketConnectionError(Exception):
 
 class User:
     """Virtual user class. Uses provided credentials to login to server, then perform the specified number of actions before disconnecting. Actions are randomly chosen between sending a randomly generated message, joining a new channel, and leaving a current channel, weighted towards sending a message. This is to simulate real user activity as accurately as possible."""
+
     def __init__(
-        self, logger: Logger,  account: dict, actions: int = 0, delay_before_actions: int = 0, delay_between_actions: int = 2, test_channels: list = [],  
+        self,
+        logger: Logger,
+        account: dict,
+        actions: int = 0,
+        delay_before_actions: int = 0,
+        delay_between_actions: int = 2,
+        test_channels: list = [],
     ):
         self.logger: Logger = logger
         self.actions: int = actions
@@ -43,7 +50,7 @@ class User:
         self.username = self.account.get("username")
         self.logger.debug(self.account)
         self.listener_task = None
-        
+
     async def authorize_account(self):
         """Use provided credentials to get a bearer token"""
         if "access_token" in self.account:
@@ -52,7 +59,9 @@ class User:
             self.username = self.account.get("username")
             self.password = self.account.get("password")
             self.bearer_token = await self.get_auth_token()
-        self.logger.debug(f"{self.username}: Bearer token acquired: {self.bearer_token}")
+        self.logger.debug(
+            f"{self.username}: Bearer token acquired: {self.bearer_token}"
+        )
 
     async def connect_websocket(self, max_retries=5, retry_delay=1):
         """Open websocket connection with retry mechanism"""
@@ -64,12 +73,14 @@ class User:
                     self.listener_task = asyncio.create_task(self.listen_for_messages())
                 return
             except Exception as e:
-                self.logger.info(f"Connection attempt {attempt + 1} failed: {e.args=}, {e.__class__=}")
+                self.logger.info(
+                    f"Connection attempt {attempt + 1} failed: {e.args=}, {e.__class__=}"
+                )
                 # traceback.print_tb(e.__traceback__)
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
-        raise WebsocketConnectionError(self.logger,
-            f"Failed to connect after {max_retries} attempts"
+        raise WebsocketConnectionError(
+            self.logger, f"Failed to connect after {max_retries} attempts"
         )
 
     async def get_auth_token(self) -> dict | None:
@@ -79,12 +90,16 @@ class User:
                 "username": self.username,
                 "password": self.password,
             }
-            async with aiohttp.request('POST', f"{URL}{LOGIN_ENDPOINT}", data=payload) as response:
+            async with aiohttp.request(
+                "POST", f"{URL}{LOGIN_ENDPOINT}", data=payload
+            ) as response:
                 response.raise_for_status()
                 self.logger.debug(f"{self.username}: Auth token received!")
                 return await response.json()
         except Exception as e:
-            self.logger.info(f"{self.username}: Auth token request failed, retrying: {e}")
+            self.logger.info(
+                f"{self.username}: Auth token request failed, retrying: {e}"
+            )
             await asyncio.sleep(2)
             return await self.get_auth_token()
 
@@ -108,7 +123,6 @@ class User:
                 await self.send_message(message)
             except Exception as e:
                 self.logger.info(f"User.send_message() {type(e).__name__}: {e}")
-
 
     async def leave_channel(self, channel_name):
         """Leave the specified channel"""
@@ -142,7 +156,9 @@ class User:
         if random_value >= 6:
             await self.send_random_message()
         # 3% chance to join a new channel
-        elif 5 >= random_value >= 3 and len(self.channels) < min(len(self.test_channels), 11):
+        elif 5 >= random_value >= 3 and len(self.channels) < min(
+            len(self.test_channels), 11
+        ):
             channel_name = random.choice(
                 [
                     channel
@@ -180,7 +196,6 @@ class User:
                     pass  # This is expected
             await self.client_websocket.close()
 
-
     async def listen_for_messages(self):
         while self.connection_active:
             try:
@@ -192,21 +207,21 @@ class User:
                         if isinstance(new_channels, list):
                             self.channels.extend(new_channels)
             except asyncio.CancelledError:
-                break  
+                break
             except ConnectionClosedOK:
                 await self.logout()
-            except Exception as e:
+            except Exception:
                 await self.logout()
                 break
-
 
     async def run(self):
         """Initiate behavior - connect to websocket and start programmed actions"""
         await self.authorize_account()
         self.client_websocket: MyWebSocket = MyWebSocket(
-            self.logger, 
-            {"access_token": self.bearer_token.get("access_token")}, 
-            self.username)
+            self.logger,
+            {"access_token": self.bearer_token.get("access_token")},
+            self.username,
+        )
         try:
             await self.connect_websocket()
             await self.start_activity()

@@ -2,7 +2,11 @@ import asyncio
 import websockets
 from logging import Logger
 from os import getenv
-from websockets import WebSocketClientProtocol, ConnectionClosedOK, ConnectionClosedError
+from websockets import (
+    WebSocketClientProtocol,
+    ConnectionClosedOK,
+    ConnectionClosedError,
+)
 
 from dotenv import load_dotenv
 from google.protobuf.message import EncodeError, DecodeError
@@ -23,6 +27,7 @@ WEBSOCKET_ENDPOINT = "/ws"
 
 class MyWebSocket:
     """Class to authenticate and open a websocket connection"""
+
     def __init__(self, logger: Logger, auth_token: dict, username: str | None = None):
         self.logger = logger
         self.websocket_url: str = f"{WS_URL}{WEBSOCKET_ENDPOINT}"
@@ -52,7 +57,7 @@ class MyWebSocket:
                 self.logger.info(f"Connection was closed unexpectedly: {e}")
             except ConnectionResetError as e:
                 self.logger.info(f"Connection reset by remote host: {e}")
-            except TimeoutError as e:
+            except TimeoutError:
                 pass
             except Exception as e:
                 self.logger.info(
@@ -66,15 +71,17 @@ class MyWebSocket:
                 await asyncio.sleep(5)
 
     def encode_message(self, message_data: dict) -> bytes:
-        """Serialize a dictionary into bytes via protobuf """
+        """Serialize a dictionary into bytes via protobuf"""
         try:
             message_object = ParseDict(message_data, message_pb2.ChatMessage())
 
             return message_object.SerializeToString()
         except EncodeError as e:
             self.logger.warning(f"encode_message() Protobuf EncodeError: {e}")
-        except Exception:
-            self.logger.warning(f"Exception during encode_message(): {type(e).__name__}: {e}")
+        except Exception as e:
+            self.logger.warning(
+                f"Exception during encode_message(): {type(e).__name__}: {e}"
+            )
 
     def decode_message(self, message_bytes: bytes) -> dict:
         """Decode bytes serialized message to a dictionary"""
@@ -82,7 +89,9 @@ class MyWebSocket:
             parsed_message: message_pb2.ChatMessage = message_pb2.ChatMessage()
             parsed_message.ParseFromString(message_bytes)
 
-            message_dict = MessageToDict(parsed_message, preserving_proto_field_name=True)
+            message_dict = MessageToDict(
+                parsed_message, preserving_proto_field_name=True
+            )
 
             return message_dict
         except Exception as e:
@@ -93,7 +102,6 @@ class MyWebSocket:
         if not self.connected:
             raise ConnectionError
         try:
-
             message_bytes: bytes = self.encode_message(message)
             if message_bytes is not None:
                 await self.websocket.send(message_bytes)
@@ -103,15 +111,17 @@ class MyWebSocket:
         except websockets.exceptions.ConnectionClosedError as e:
             self.logger.debug(f"Connection closed unexpectedly: {e}. Reconnecting...")
             self.connected = False
-            await self.connect() 
-            await self.send_message(message) 
+            await self.connect()
+            await self.send_message(message)
         except Exception as e:
-            self.logger.warning(f"An error occurred while sending message: {type(e).__name__}: {e}")
+            self.logger.warning(
+                f"An error occurred while sending message: {type(e).__name__}: {e}"
+            )
 
     async def receive_message(self) -> dict:
         """Receive messages from the WebSocket. Message will be deserialized before being returned"""
         if not self.connected:
-            return 
+            return
         try:
             message_bytes: bytes = await self.websocket.recv()
             return self.decode_message(message_bytes)
@@ -120,11 +130,13 @@ class MyWebSocket:
         except websockets.exceptions.ConnectionClosedError as e:
             self.logger.debug(f"Connection closed unexpectedly: {e}. Reconnecting...")
             self.connected = False
-            await self.connect()  
+            await self.connect()
         except ConnectionClosedOK as e:
             raise ConnectionClosedOK(*e.args)
-        except Exception as e: 
-            self.logger.info(f"An error occurred while receiving message: {type(e).__name__}: {e}")
+        except Exception as e:
+            self.logger.info(
+                f"An error occurred while receiving message: {type(e).__name__}: {e}"
+            )
 
     async def close(self):
         """Close the WebSocket connection if open."""
@@ -133,9 +145,13 @@ class MyWebSocket:
                 await self.websocket.close()
                 self.logger.debug(f"{self.username}: WebSocket connection closed.")
             except ConnectionClosedError as e:
-                self.logger.debug(f"Connection closed unexpectedly during closure: ConnectionClosedError: {e}")
+                self.logger.debug(
+                    f"Connection closed unexpectedly during closure: ConnectionClosedError: {e}"
+                )
             except Exception as e:
-                self.logger.info(f"An error occurred while closing the WebSocket: {type(e).__name__}: {e}")
+                self.logger.info(
+                    f"An error occurred while closing the WebSocket: {type(e).__name__}: {e}"
+                )
             finally:
                 self.websocket = None
                 self.connected = False
