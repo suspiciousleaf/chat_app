@@ -19,6 +19,10 @@ The Chattr project is divided into three main components:
 ### Client with load testing in progress
 ![](demo.gif)
 
+### Example of performance data
+ ![Graphs](https://i.imgur.com/JRoV4dQ.png)
+ [Source](https://i.imgur.com/JRoV4dQ.png)
+
 ## Getting Started  
 ### Prerequisites  
 - Docker  
