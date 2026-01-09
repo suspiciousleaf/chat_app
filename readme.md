@@ -3,6 +3,8 @@
 ## Overview  
 Chattr is a real-time chat application designed to facilitate dynamic group or topic-based communication. It features authentication, message persistence, and a performance monitoring framework. The project was developed as a learning tool to explore real-time communication, low-latency programming, concurrency, performance monitoring, testing, profiling, and optimization.
 
+See the [Design Document](design_doc.md) for proposed steps, and the [Performance Analysis Report](performance_analysis_report.md) for the results achieved
+
 ## Features  
 - **Real-Time Messaging**: Instant message delivery with low latency.  
 - **Dynamic Groups/Topics**: Create and join chat groups or topics on the fly.  
