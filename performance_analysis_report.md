@@ -10,8 +10,10 @@ This report assesses the performance enhancements made to the chat application s
 Since authentication has such an impact on CPU load and results in significant latencies, and is the target of one fo the performance goals, until it is addressed in goal 4.3 it will be removed, by having accounts connect and then sit idle for a period of time until all authentication has completed. User activity will still ramp up, plateau, and ramp down as before, just after the authentical load has occured rather than concurrently.
 
 Removing the authentication load in this way results in the following latencies:
-With authentication:    percentiles_ms=[362,857,2132]
-Without authentication: percentiles_ms=[203,246,311]
+| Scenario              | p90 (ms) | p95 (ms) | p99 (ms) |
+|-----------------------|----------|----------|----------|
+| With authentication   | 362      | 857      | 2,132    |
+| Without authentication| 203      | 246      | 311      |
 
 These values are already within the target range, indicating that addressing the authentication load is a correct approach. However we also want to increase the supported user / message bandwidth, so other performance gains are still required.
 
@@ -22,12 +24,14 @@ These values are already within the target range, indicating that addressing the
 A test message was created and serialized using the standard json library, as well as [orjson](https://github.com/ijl/orjson) (one of the most performant python json serializers) and [protobuf](https://protobuf.dev/). Serialization time, deserialization time, and message size were compared. Times are the sum over a loop of 1,000,000 iterations.
 
 Test json message:
+```
 {
   "name": "Test Name",
   "age": 40,
   "random_float": 0.554781258874,
   "items": ["Hammer", "Radio"]
 }
+```
 
 | Format      | Serialize (ms) | Deserialize (ms) | Total (ms) | File Size (bytes) |
 |-------------|-----------------|------------------|------------|--------------------|
@@ -38,17 +42,26 @@ Test json message:
 We expect to see speed improvements going from json to orjson/protobuf, and size improvements between orjson and protobuf.
 
 - **Switch to orjson**: Initially replaced JSON serialization with orjson, resulting in measurable latency reduction. Orjson is not only a more performant tool for serialization / deserialization, but also serializes into bytes rather than a string, so messages can be sent as binary over the websocket which is more performant. It also results in a slightly smaller message - 116b vs 132b.
-  json   percentiles_ms=[203,246,311]
-  orjson percentiles_ms=[170,199,240]
+
+| Format  | p90 (ms) | p95 (ms) | p99 (ms) |
+|---------|----------|----------|----------|
+| JSON    | 203      | 246      | 311      |
+| Orjson  | 170      | 199      | 240      |
 
 - **Protobuf Integration**: Protobuf with a micro-backend ([upb](https://github.com/protocolbuffers/upb/wiki) written in C) was implemented for further reduction in CPU load and message size.
   - Protobuf showed improved serialization and deserialization times over JSON and Orjson, with message sizes reduced by 50% compared to JSON. The test message above was 64b using protobuf.
 - **Post-Optimization Latencies (Protobuf)**:
-  - protobuf percentiles_ms=[159,190,252]
+
+| Format   | p90 (ms) | p95 (ms) | p99 (ms) |
+|----------|----------|----------|----------|
+| Protobuf | 159      | 190      | 252      |
   - CPU load has also slightly reduced, at peak message volume the band has dropped from 50%-90% down to 40%-80%. The micro band end doing the serialization is now able to be pushed to the second core on the server, reducing the demand on the core handling ther main load.
   
 ### Results
-Protobuf serialization significantly reduced latency and CPU load, exceeding latency goals in tests. This approach allowed for an increase in active virtual users from 250 to 300, supporting a sustained message volume of 9,000 messages per second (up from 6,500 at 250 users) at the following latencies: percentiles_ms=[357,460,561].
+Protobuf serialization significantly reduced latency and CPU load, exceeding latency goals in tests. This approach allowed for an increase in active virtual users from 250 to 300, supporting a sustained message volume of 9,000 messages per second (up from 6,500 at 250 users) at the following latencies: 
+| p90 (ms) | p95 (ms) | p99 (ms) |
+|----------|----------|----------|
+| 357      | 460      | 561      |
 
 **Conclusion**: Protobuf serialization achieved substantial latency and bandwidth improvements over the default JSON library.
 
@@ -78,9 +91,11 @@ Due to compatibility issues, cProfile was used instead of Scalene or py-spy. Pro
 
 ## Scalability Testing
 After these optimizations, the server was tested at higher user counts to assess scalability:
-- **325 Users (11,000/s)**: [164,188,221], CPU load of 40%-60%.
-- **400 Users (16,500/s)**: [351,446,590], CPU load 40%-70%.
-- **425 Users (18,000/s)**: [481,570,768], CPU load nearing saturation at 50%-90%.
+| Users (messages per second)| p90 (ms) | p95 (ms) | p99 (ms) | CPU load (%)       |
+|-----------------------|----------|----------|----------|------------------|
+| 325 (11,000/s)        | 164      | 188      | 221      | 40%-60%          |
+| 400 (16,500/s)        | 351      | 446      | 590      | 40%-70%          |
+| 425 (18,000/s)        | 481      | 570      | 768      | 50%-90% (nearing saturation) |
 
 With Protobuf optimizations, uvloop, and permessage_deflate, the application could handle nearly three times the original message bandwidth, supporting around 16,500 messages per second at an acceptable latency.The 90th percentile is a bit higher than originally specified, but the 95th and 99th are comfortably within limits and the behaviour is consistent across multiple runs.
 
@@ -90,6 +105,7 @@ During runs it was noted that the process moves between CPU cores every second o
 ### Results using CPU affinity:
 - Reduced latencies percentiles_ms=[338,428,671] and a tighter band of CPU loads across the plateau: 70%-90% with affinity vs 60%-100% without at 425 virtual users.
 - This did work as expected, however enforcing resource useage behaviour like this will likely only be beneficial in specific loading situations, and isn't a good idea for a production environment.
+- It also had the added benefit of tightening performance values to a narrower band, as they are reported as averages across a period of time.
 
 **Conclusion**: Profiling identified high-impact optimizations that enabled the application to support higher message throughput and user concurrency.
 
@@ -98,6 +114,8 @@ During runs it was noted that the process moves between CPU cores every second o
 ### Implementation Details
 Profiling showed that `authenticate_user` calls took 10.69% CPU time. Of this, the end of the chain is `built-in method _ffi.argon2_verify`, the password hashing function. This is by design CPU intensive, and it shows that without altering the password verification approach entirely there are no gains to be made. It uses highly optimised C code for the actual hashing. Given the high impact that authentication has on load, the best approach would be to move authentication to a separate microservice that will provide a bearer token (authentication already uses JWT), and the main server will just validate that token on connection, which carries a very small CPU load. 
 Given the dynamic demand, some kind of elastic solution seems the most logical, like an AWS EC2 instance using auto scaling. 
+
+This is simulated by adding a delay after authentication before virtual users start performing actions, so the authentication load does not occur at the same time as the activity load. We retain the ramp up and down behavior.
 
 ## Summary of Performance Gains
 - **Latency**: Across all optimizations, latency reductions were achieved, meeting or closely approaching target percentiles even under high-load scenarios.
