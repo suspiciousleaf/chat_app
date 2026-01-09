@@ -120,43 +120,41 @@ If these are achieved, sustain higher account activity while maintaining accepta
 ## Performance goal 1: Serialization
 
 Implemented orjson isntead of json with messages sent as bytes of websocket - latency percentiles changes:
-without auth: 
-json   percentiles_ms=[203,246,311]
-orjson percentiles_ms=[170,199,240]
-with auth:
-json   percentiles_ms=[342,748,2162]
-orjson percentiles_ms=[309,492,1828]
 
-In serialization / deserialization tests, using a simple message with a string, int, float, and list (repeat string) over 10,000,000 loops. Using the upb micro-protobuf backend written in C for improved performance over the standard C++ version. Results:
+| Scenario   | Format | p90 (ms) | p95 (ms) | p99 (ms) |
+|------------|--------|----------|----------|----------|
+| Without auth | JSON   | 203      | 246      | 311      |
+| Without auth | Orjson | 170      | 199      | 240      |
+| With auth    | JSON   | 342      | 748      | 2,162    |
+| With auth    | Orjson | 309      | 492      | 1,828    |
 
-Protobuf serialize:   403 ms
-Protobuf deserialize: 344 ms
-Protobuf total:       747 ms
-Protobuf file size:   64 b
 
-Orjson serialize:     407 ms
-Orjson deserialize:   645 ms
-Orjson total:         1,052 ms
-Orjson file size:     116 b
+In serialization / deserialization tests, using a simple message with a string, int, float, and list (repeat string) over 10,000,000 loops. Using the upb micro-protobuf backend written in C for improved performance over the standard C++ version. 
 
-Json serialize:       3,588 ms
-Json deserialize:     2,630 ms
-Json total:           6,219 ms
-Json file size:       132 b
+Results:
+
+| Format    | Serialize (ms) | Deserialize (ms) | Total (ms) | File size (bytes) |
+|-----------|----------------|------------------|------------|-------------------|
+| Json      | 3,588          | 2,630            | 6,219      | 132               |
+| Orjson    | 407            | 645              | 1,052      | 116               |
+| Protobuf  | 403            | 344              | 747        | 64                |
 
 Protobuf is the fastest, but orjson was surprisingly close. Orjson is slightly faster at serializing data, but significantly slower at deserializing. Orjson shows a small reduction in filesize vs json, but protobuf achieves a 50% reduction in filesize which will contribute meaningfully to reducing required bandwidth.
 
 Implemented cProfile to test server when running locally. Identified issue with protobuf implementation serializing messages for every send, rather than every message. Corrected and ran load testing under the same conditions:
 
-without auth:
-protobuf percentiles_ms=[159,190,252]
-
-with auth:
-protobuf percentiles_ms=[280,427,1667]
+| Scenario     | Format   | p90 (ms) | p95 (ms) | p99 (ms) |
+|--------------|----------|----------|----------|----------|
+| Without auth | Protobuf | 159      | 190      | 252      |
+| With auth    | Protobuf | 280      | 427      | 1,667    |
 
 This has already exceeded the specified performance targets of [200,500,1000] when the auth load is removed, and isn't far off with it included. 
 Virtual users were increased to 300 in the no auth test, which results in message volume increasing from ~6500/s to ~9000/s, and is sustained with the following latencies:
-protobuf percentiles_ms=[357,460,561]
+
+| Format   | p90 (ms) | p95 (ms) | p99 (ms) |
+|----------|----------|----------|----------|
+| Protobuf | 357      | 460      | 561      |
+
 
 Additional observations:
 While CPU load on the core handling the async thread remains high, the load on the second core increased from ~3% to ~20%. The protobuf serialization is done in C on a separate thread, which appears to be pushed to the second core. Moving this load to the other core, and the reduced message size, enables this higher sustained load and provides a significant performance boost.
@@ -172,27 +170,37 @@ Used cProfile with gprof2dot and snakeviz.
 
 ### Possible areas for improvement
 - SQLite commit. Comes from committing messages, and also committing updates channel subscription lists. Message history is already committed in batches, but channel subscriptions could be updated in cache, and then committed periodically, or on user disconnect.
-- Async loop overhead is a significant part of the load (insert number), exploring alternative event loops that are more optimised would likely be worthwhile. [uvloop](https://uvloop.readthedocs.io/) for Linux, or the Windows port, [winloop](https://pypi.org/project/winloop/), looks to be an appropriate choice.
+- Async loop overhead is a significant part of the load, exploring alternative event loops that are more optimised would likely be worthwhile. [uvloop](https://uvloop.readthedocs.io/) for Linux, or the Windows port, [winloop](https://pypi.org/project/winloop/), looks to be an appropriate choice.
 
 Implemented uvloop and deployed to VPS. Ran perf test under the standard conditions with the following results:
 
-Without auth:
-percentiles_ms=[165,196,247]
+| Scenario     | p90 (ms) | p95 (ms) | p99 (ms) |
+|--------------|----------|----------|----------|
+| Without auth | 165      | 196      | 247      |
+| With auth    | 323      | 747      | 1,992    |
 
-With auth:
-percentiles_ms=[323,747,1992]
 
-cProfile imposes a significant additional load, so active accounts was reduced from 250 to 200. This drops message volume from ~6500/s to ~4000/s with latencies almost identical to the non profiled ones: percentiles_ms=[175,203,248]
+cProfile imposes a significant additional load, so active accounts were reduced from 250 to 200. This drops message volume from ~6500/s to ~4000/s with latencies almost identical to the non profiled ones: 
+
+| p90 (ms) | p95 (ms) | p99 (ms) |
+|----------|----------|----------|
+| 175      | 203      | 248      |
+
 Prof filename for the above run:
-2024-10-31_20-09.prof
+`2024-10-31_20-09.prof`
 
-# Note these values are higher than the above test using 300 accounts and not using uvloop
-Given that latencies are now significantly below the target values, the number of virtual accounts was increased to see what could be sustained. Using 300 accounts, with an associated message volume of ~9000/s, resulted in percentiles_ms=[463,555,751]. The first value, 90%, is over the target, but the other values are acceptable.
+Note these values are higher than the above test using 300 accounts and not using uvloop.
 
-Snakeviz of [this run](2024-11-01_17-31_uvloop.prof) shows high CPU demand from zlib.Compress. Follwoing the stacktrace shows it's being called by per message deflate used by the websocket library. While this can reduce network traffic significantly for json format messages, network bandwidth isn't the limiting factor and with messages serialized by protobuf there is typically little to no gain to be made. Disabling per message deflate should reduce this overhead. 
-permessage_deflate.py:141(encode) shows a cumulative time of 72.76s, which is 54% of the 134.9s cumulative time spent on connection_manager.py:250(send_message). 
+Given that latencies are now significantly below the target values, the number of virtual accounts were increased to see what could be sustained. Using 300 accounts, with an associated message volume of ~9000/s, resulted in the below metrics. The first value, 90%, is over the target, but the other values are acceptable.
+| p90 (ms) | p95 (ms) | p99 (ms) |
+|----------|----------|----------|
+| 463      | 555      | 751      |
 
-Results with uvicorn flag --per_message_deflate False:
+
+Snakeviz of [this run](2024-11-01_17-31_uvloop.prof) shows high CPU demand from `zlib.Compress`. Following the stacktrace shows it's being called by `per message deflate` used by the websocket library. While this can reduce network traffic significantly for json format messages, network bandwidth isn't the limiting factor and with messages already serialized by protobuf there is typically little to no gain to be made. Disabling `per message deflate` should reduce this overhead. 
+`permessage_deflate.py:141(encode)` shows a cumulative time of 72.76s, which is 54% of the 134.9s cumulative time spent on `connection_manager.py:250(send_message)`. 
+
+Results with uvicorn flag `--per_message_deflate False`:
 [percentiles_ms=[125,156,215]](2024-11-02_17-52,pb,uvloop,percentiles_ms=[125,156,215],accounts=250,actions=40,delay_before_act=62.5,delay_between_act=6,delay_between_connections=0.25.png)
 
 Profile 2024-11-02_16-33.prof shows cumulative time for connection_manager.py:250(send_message) has reduced to 64.26s, which is a significant reduction in CPU load.
