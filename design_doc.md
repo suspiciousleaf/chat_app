@@ -201,40 +201,49 @@ Snakeviz of [this run](2024-11-01_17-31_uvloop.prof) shows high CPU demand from 
 `permessage_deflate.py:141(encode)` shows a cumulative time of 72.76s, which is 54% of the 134.9s cumulative time spent on `connection_manager.py:250(send_message)`. 
 
 Results with uvicorn flag `--per_message_deflate False`:
-[percentiles_ms=[125,156,215]](2024-11-02_17-52,pb,uvloop,percentiles_ms=[125,156,215],accounts=250,actions=40,delay_before_act=62.5,delay_between_act=6,delay_between_connections=0.25.png)
+percentiles_ms=[125,156,215]
+<!-- (2024-11-02_17-52,pb,uvloop,percentiles_ms=[125,156,215],accounts=250,actions=40,delay_before_act=62.5,delay_between_act=6,delay_between_connections=0.25.png) -->
 
 Profile 2024-11-02_16-33.prof shows cumulative time for connection_manager.py:250(send_message) has reduced to 64.26s, which is a significant reduction in CPU load.
 Normal message volume of ~6,500/s is sustained with a CPU load of 25%-45% instead of the previous standard range of 50%-80%.
 
 Running again with 300 virtual users and a message volume of 9,000/s gives the following latencies:
 
-[percentiles_ms=[178,204,258]](2024-11-02_18-08,pb,uvloop,percentiles_ms=[178,204,258],accounts=300,actions=40,delay_before_act=75.0,delay_between_act=6,delay_between_connections=0.25.png)
+<!-- The image links below are broken, images have been removed at some point -->
+
+percentiles_ms=[178,204,258]
+<!-- (2024-11-02_18-08,pb,uvloop,percentiles_ms=[178,204,258],accounts=300,actions=40,delay_before_act=75.0,delay_between_act=6,delay_between_connections=0.25.png) -->
 
 This is well below the target values, so the number of users can be increased again, this time to 325 with a message volume of ~11,000/s
 
-[percentiles_ms=[164,188,221]](2024-11-02_18-22,pb,uvloop,percentiles_ms=[164,188,221],accounts=325,actions=40,delay_before_act=81.25,delay_between_act=6,delay_between_connections=0.25.png)
+percentiles_ms=[164,188,221]
+<!-- (2024-11-02_18-22,pb,uvloop,percentiles_ms=[164,188,221],accounts=325,actions=40,delay_before_act=81.25,delay_between_act=6,delay_between_connections=0.25.png) -->
 
 This was sustained with CPU load of 40%-60%, which is still slightly lower than the 50%-80% that was required for a message volume of 6,500/s. 
 
 At 350 users and 13,000/s message volume, CPU load 40%-70%:
 
-[percentiles_ms=[198,230,309]](2024-11-02_18-30,pb,uvloop,percentiles_ms=[198,230,309],accounts=350,actions=40,delay_before_act=87.5,delay_between_act=6,delay_between_connections=0.25.png)
+percentiles_ms=[198,230,309]
+<!-- (2024-11-02_18-30,pb,uvloop,percentiles_ms=[198,230,309],accounts=350,actions=40,delay_before_act=87.5,delay_between_act=6,delay_between_connections=0.25.png) -->
 
 At 375 users and 15,000/s message volume, CPU load 40%-70%:
 
-[percentiles_ms=[213,266,376]](2024-11-02_18-38,pb,uvloop,percentiles_ms=[213,266,376],accounts=375,actions=40,delay_before_act=93.75,delay_between_act=6,delay_between_connections=0.25.png)
+percentiles_ms=[213,266,376]
+<!-- (2024-11-02_18-38,pb,uvloop,percentiles_ms=[213,266,376],accounts=375,actions=40,delay_before_act=93.75,delay_between_act=6,delay_between_connections=0.25.png) -->
 
 400 users, 16,500/s message volume, CPU load 40%-70%:
-[percentiles_ms=[351,446,590]](2024-11-02_18-46,pb,uvloop,percentiles_ms=[351,446,590],accounts=400,actions=40,delay_before_act=100.0,delay_between_act=6,delay_between_connections=0.25.png)
+percentiles_ms=[351,446,590]
+<!-- (2024-11-02_18-46,pb,uvloop,percentiles_ms=[351,446,590],accounts=400,actions=40,delay_before_act=100.0,delay_between_act=6,delay_between_connections=0.25.png) -->
 
 425 users, 18,000/s message volume, CPU load 50%-90%:
-[percentiles_ms=[481,570,768]](2024-11-03_13-50,pb,uvloop,percentiles_ms=[481,570,768],accounts=425,actions=40,delay_before_act=106.25,delay_between_act=6,delay_between_connections=0.25)
+<!-- percentiles_ms=[481,570,768]](2024-11-03_13-50,pb,uvloop,percentiles_ms=[481,570,768],accounts=425,actions=40,delay_before_act=106.25,delay_between_act=6,delay_between_connections=0.25) -->
 
 At this point the CPU is starting to become saturated and latencies are climbing rapidly outside the acceptable range.
 
 The process is rapidly moved between the CPU cores while it runs, which will result in increased cache misses and reduced performance. I used `psutil cpu affinity` to bind the main process to a single core, while allowing subprocesses and threads (such as those used my protobuf for serialization) to be freely assigned between cores. Delay between account sign-ins was increased from 0.25s to 0.35s due to the higher CPU load during auth, which will ultimately be moved to a different microservice. This resulted in reduced latencies, and a narrower spread of CPU load values.
 
-425 users, 18,000/s message volume, CPU load 70%-90%: REPEAT A FEW TIMES
-[percentiles_ms=[338,428,671]](2024-11-03_16-21,pb,uvloop,percentiles_ms=[338,428,671],accounts=425,actions=40,delay_before_act=148.75,delay_between_act=6,delay_between_connections=0.35)
+425 users, 18,000/s message volume, CPU load 70%-90%: 
+percentiles_ms=[338,428,671]
+<!-- (2024-11-03_16-21,pb,uvloop,percentiles_ms=[338,428,671],accounts=425,actions=40,delay_before_act=148.75,delay_between_act=6,delay_between_connections=0.35) -->
 
 Message volume to number of users equation is approx 0.1x^2. 250 users ^ 2 = 62,500, *0.1 = 6,250 messages per second
